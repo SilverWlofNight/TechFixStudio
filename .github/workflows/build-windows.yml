@@ -1,0 +1,58 @@
+name: Build TechFix Studio
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore TechFixStudio.csproj
+
+      - name: Build Release
+        run: dotnet build TechFixStudio.csproj -c Release --no-restore
+
+      - name: Publish Windows x64
+        run: dotnet publish TechFixStudio.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o publish
+
+      - name: Prepare package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item publish\* package\ -Recurse -Force
+          New-Item -ItemType Directory -Force -Path package\tools\platform-tools | Out-Null
+          New-Item -ItemType Directory -Force -Path package\modules | Out-Null
+          New-Item -ItemType Directory -Force -Path package\data | Out-Null
+          @"
+          TechFix Studio
+          Windows x64 Release
+          Main application: TechFixStudio.exe
+          "@ | Set-Content package\README.txt -Encoding UTF8
+
+      - name: Create ZIP
+        shell: powershell
+        run: |
+          Compress-Archive -Path package\* -DestinationPath TechFixStudio-win-x64.zip -Force
+
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: TechFixStudio-win-x64
+          path: TechFixStudio-win-x64.zip
+          retention-days: 30
