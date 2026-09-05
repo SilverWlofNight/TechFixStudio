@@ -1,8 +1,9 @@
+using System.Text.Json.Serialization;
+
 namespace TechFixStudio.Models;
 
-public enum TransportType
+public enum Transport
 {
-    Unknown,
     Adb,
     Fastboot
 }
@@ -15,150 +16,258 @@ public enum RiskLevel
     Critical
 }
 
-public enum FlashTaskState
+public enum TaskState
 {
     Queued,
     Preflight,
     Hashing,
-    WaitingForConfirmation,
-    Flashing,
-    Succeeded,
+    AwaitingConfirmation,
+    Running,
+    Success,
     Failed,
     Cancelled
 }
 
-public sealed class DeviceInfo
-{
-    public TransportType Transport { get; set; }
+public sealed record DeviceInfo(
+    string Serial,
+    Transport Transport,
+    string State,
+    string Model,
+    string Manufacturer,
+    string Android,
+    string Sdk,
+    string Abi,
+    string Slot,
+    bool Root,
+    bool Unlocked);
 
-    public string Serial { get; set; } = string.Empty;
+public sealed record Telemetry(
+    double Battery,
+    double Temperature,
+    double StorageUsed,
+    string Uptime,
+    string Kernel,
+    string Fingerprint);
 
-    public string State { get; set; } = string.Empty;
+public sealed record CommandResult(
+    int ExitCode,
+    string StdOut,
+    string StdErr,
+    TimeSpan Duration,
+    bool TimedOut);
 
-    public string Manufacturer { get; set; } = string.Empty;
+public sealed record FastbootInfo(
+    string Serial,
+    string Product,
+    string Variant,
+    string Slot,
+    string Unlocked,
+    string Secure,
+    string AntiRollback,
+    string Raw);
 
-    public string Model { get; set; } = string.Empty;
+public sealed record RomImage(
+    string Partition,
+    string Path,
+    long Size,
+    string Sha256,
+    bool Critical);
 
-    public string AndroidVersion { get; set; } = string.Empty;
-
-    public string SdkVersion { get; set; } = string.Empty;
-
-    public string CpuAbi { get; set; } = string.Empty;
-
-    public string Product { get; set; } = string.Empty;
-
-    public string CurrentSlot { get; set; } = string.Empty;
-
-    public bool BootloaderUnlocked { get; set; }
-
-    public bool RootDetected { get; set; }
-
-    public bool AvbEnabled { get; set; }
-
-    public string AntiRollback { get; set; } = string.Empty;
-
-    public string RawFastbootInfo { get; set; } = string.Empty;
-
-    public DateTime LastUpdatedUtc { get; set; } =
-        DateTime.UtcNow;
-}
-
-public sealed class CommandResult
-{
-    public int ExitCode { get; init; }
-
-    public string StdOut { get; init; } = string.Empty;
-
-    public string StdErr { get; init; } = string.Empty;
-
-    public TimeSpan Duration { get; init; }
-
-    public bool TimedOut { get; init; }
-
-    public bool Success =>
-        !TimedOut && ExitCode == 0;
-}
+public sealed record RomPackage(
+    string Name,
+    string Product,
+    string Build,
+    string Region,
+    List<RomImage> Images,
+    List<string> Scripts,
+    string Source);
 
 public sealed class FlashTask
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
-    public string Serial { get; set; } = string.Empty;
+    public string Serial { get; set; } = "";
 
-    public string Partition { get; set; } = string.Empty;
+    public string Partition { get; set; } = "";
 
-    public string ImagePath { get; set; } = string.Empty;
+    public string ImagePath { get; set; } = "";
 
-    public string ExpectedSha256 { get; set; } = string.Empty;
+    public string Sha256 { get; set; } = "";
 
-    public string ActualSha256 { get; set; } = string.Empty;
+    public long Size { get; set; }
 
-    public FlashTaskState State { get; set; } =
-        FlashTaskState.Queued;
+    public TaskState State { get; set; } = TaskState.Queued;
+
+    public string Message { get; set; } = "Queued";
 
     public double Progress { get; set; }
 
-    public string Message { get; set; } = string.Empty;
+    public DateTime Created { get; set; } = DateTime.Now;
 
-    public DateTime CreatedUtc { get; set; } =
-        DateTime.UtcNow;
+    public DateTime? Started { get; set; }
 
-    public DateTime? StartedUtc { get; set; }
+    public DateTime? Finished { get; set; }
 
-    public DateTime? FinishedUtc { get; set; }
+    public string Product { get; set; } = "";
+
+    public string Slot { get; set; } = "";
+
+    public bool Critical { get; set; }
+
+    public bool Confirmed { get; set; }
 }
 
-public sealed class RomEntry
+public sealed record HistoryEntry(
+    DateTime Time,
+    string Action,
+    string Target,
+    string Result,
+    string Risk,
+    string Details);
+
+public sealed record RomResource(
+    string Name,
+    string Product,
+    string Version,
+    string Region,
+    string Codename,
+    string Url,
+    string Sha256,
+    string Notes);
+
+public sealed class AndroidDiagnostics
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Serial { get; init; } = "";
 
-    public string Manufacturer { get; set; } = string.Empty;
+    public string Brand { get; init; } = "";
 
-    public string Product { get; set; } = string.Empty;
+    public string Manufacturer { get; init; } = "";
 
-    public string Codename { get; set; } = string.Empty;
+    public string Model { get; init; } = "";
 
-    public string AndroidVersion { get; set; } = string.Empty;
+    public string Device { get; init; } = "";
 
-    public string BuildId { get; set; } = string.Empty;
+    public string Product { get; init; } = "";
 
-    public string Region { get; set; } = string.Empty;
+    public string AndroidVersion { get; init; } = "";
 
-    public string DownloadUrl { get; set; } = string.Empty;
+    public string Sdk { get; init; } = "";
 
-    public string Sha256 { get; set; } = string.Empty;
+    public string SecurityPatch { get; init; } = "";
 
-    public bool Official { get; set; }
+    public string BuildId { get; init; } = "";
 
-    public string Notes { get; set; } = string.Empty;
+    public string Fingerprint { get; init; } = "";
+
+    public string Abi { get; init; } = "";
+
+    public string Abi64 { get; init; } = "";
+
+    public string Kernel { get; init; } = "";
+
+    public string Slot { get; init; } = "";
+
+    public string VerifiedBootState { get; init; } = "";
+
+    public string VbmetaDeviceState { get; init; } = "";
+
+    public string AvbVersion { get; init; } = "";
+
+    public string BootReason { get; init; } = "";
+
+    public AndroidBatteryInfo Battery { get; init; } =
+        new(0, 0, 0, "", "");
+
+    public AndroidMemoryInfo Memory { get; init; } =
+        new(0, 0, 0, 0);
+
+    public AndroidStorageInfo Storage { get; init; } =
+        new(0, 0, 0, 0);
+
+    public AndroidCpuInfo Cpu { get; init; } =
+        new(0, "");
+
+    public string Uptime { get; init; } = "";
 }
 
-public sealed class AuditRecord
+public sealed record AndroidBatteryInfo(
+    double Level,
+    double Temperature,
+    double VoltageMv,
+    string Health,
+    string Status);
+
+public sealed record AndroidMemoryInfo(
+    long TotalKb,
+    long AvailableKb,
+    long UsedKb,
+    double UsedPercent);
+
+public sealed record AndroidStorageInfo(
+    long TotalBytes,
+    long UsedBytes,
+    long AvailableBytes,
+    double UsedPercent);
+
+public sealed record AndroidCpuInfo(
+    int CoreCount,
+    string Hardware);
+
+public sealed class FlashPlan
 {
-    public DateTime TimestampUtc { get; set; }
+    public string Serial { get; set; } = "";
 
-    public string User { get; set; } = string.Empty;
+    public string Product { get; set; } = "";
 
-    public string Action { get; set; } = string.Empty;
+    public string CurrentSlot { get; set; } = "";
 
-    public string Target { get; set; } = string.Empty;
+    public string Unlocked { get; set; } = "";
 
-    public RiskLevel Risk { get; set; }
+    public string Secure { get; set; } = "";
 
-    public bool Success { get; set; }
+    public string AntiRollback { get; set; } = "";
 
-    public string Message { get; set; } = string.Empty;
+    public bool ProductMatch { get; set; }
+
+    public bool BootloaderUnlocked { get; set; }
+
+    public bool SafeToProceed { get; set; }
+
+    public List<string> Warnings { get; set; } = new();
+
+    public List<FlashPlanItem> Items { get; set; } = new();
 }
 
-public sealed class HistoryRecord
+public sealed class FlashPlanItem
 {
-    public DateTime TimestampUtc { get; set; }
+    public string Partition { get; set; } = "";
 
-    public string Action { get; set; } = string.Empty;
+    public string ImagePath { get; set; } = "";
 
-    public string Device { get; set; } = string.Empty;
+    public string Sha256 { get; set; } = "";
 
-    public string Result { get; set; } = string.Empty;
+    public long Size { get; set; }
 
-    public string Details { get; set; } = string.Empty;
+    public bool Critical { get; set; }
+
+    public bool Allowed { get; set; }
+
+    public string Reason { get; set; } = "";
+}
+
+public sealed class MagiskInfo
+{
+    public bool RootDetected { get; set; }
+
+    public bool MagiskDetected { get; set; }
+
+    public string Version { get; set; } = "";
+
+    public string Zygisk { get; set; } = "";
+
+    public string DenyList { get; set; } = "";
+
+    public string InstallPath { get; set; } = "";
+
+    public string Raw { get; set; } = "";
 }

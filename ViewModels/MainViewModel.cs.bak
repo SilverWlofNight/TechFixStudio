@@ -1,0 +1,1120 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Windows;
+using System.Windows.Threading;
+using TechFixStudio.Infrastructure;
+using TechFixStudio.Models;
+using TechFixStudio.Services;
+
+namespace TechFixStudio.ViewModels;
+
+public sealed class MainViewModel : INotifyPropertyChanged
+{
+    private readonly AndroidService _android = new();
+
+    private readonly AndroidDiagnosticsService _diagnostics = new();
+
+    private readonly MagiskService _magisk = new();
+
+    private readonly FastbootService _fastboot = new();
+
+    private readonly FlashQueueService _queue = new();
+
+    private readonly FactoryImageService _factory = new();
+
+    private readonly FlashPlanService _flashPlan = new();
+
+    private readonly WindowsRepairService _repair = new();
+
+    private readonly SshService _ssh = new();
+
+    private readonly HistoryService _history = new();
+
+    private readonly AuditService _audit = new();
+
+    private readonly RiskEngine _risk = new();
+
+    private readonly RomCatalogService _roms = new();
+
+    private readonly ToolLocator _tools = new();
+
+    public event PropertyChangedEventHandler?
+        PropertyChanged;
+
+    private string _status =
+        "Initializing...";
+
+    private string _clock = "";
+
+    private string _terminal =
+        "TECHFIX STUDIO // REAL PROCESS TERMINAL\r\n";
+
+    private string _factoryText =
+        "No package loaded.";
+
+    private string _planText =
+        "No flash plan.";
+
+    private string _sshOutput =
+        "SSH ready.";
+
+    private string _command = "";
+
+    private string _flashPath = "";
+
+    private string _flashPartition =
+        "boot";
+
+    private string _hash = "";
+
+    private string _flashStatus =
+        "Idle";
+
+    private string _sshHost = "";
+
+    private string _sshUser = "";
+
+    private string _sshCommand =
+        "uname -a";
+
+    private string _logcat = "";
+
+    private string _magiskText =
+        "Magisk status not loaded.";
+
+    private double _cpu;
+
+    private double _ram;
+
+    private double _battery;
+
+    private double _temp;
+
+    private DeviceInfo? _selected;
+
+    private AndroidDiagnostics? _androidDiagnostics;
+
+    private MagiskInfo? _magiskInfo;
+
+    private RomPackage? _currentRom;
+
+    private FlashPlan? _currentPlan;
+
+    public string Status
+    {
+        get => _status;
+        set => Set(ref _status, value);
+    }
+
+    public string Clock
+    {
+        get => _clock;
+        set => Set(ref _clock, value);
+    }
+
+    public string Terminal
+    {
+        get => _terminal;
+        set => Set(ref _terminal, value);
+    }
+
+    public string Command
+    {
+        get => _command;
+        set => Set(ref _command, value);
+    }
+
+    public string FactoryText
+    {
+        get => _factoryText;
+        set => Set(ref _factoryText, value);
+    }
+
+    public string PlanText
+    {
+        get => _planText;
+        set => Set(ref _planText, value);
+    }
+
+    public string SshOutput
+    {
+        get => _sshOutput;
+        set => Set(ref _sshOutput, value);
+    }
+
+    public string SshHost
+    {
+        get => _sshHost;
+        set => Set(ref _sshHost, value);
+    }
+
+    public string SshUser
+    {
+        get => _sshUser;
+        set => Set(ref _sshUser, value);
+    }
+
+    public string SshCommand
+    {
+        get => _sshCommand;
+        set => Set(ref _sshCommand, value);
+    }
+
+    public string FlashPath
+    {
+        get => _flashPath;
+        set => Set(ref _flashPath, value);
+    }
+
+    public string FlashPartition
+    {
+        get => _flashPartition;
+        set => Set(ref _flashPartition, value);
+    }
+
+    public string FlashHash
+    {
+        get => _hash;
+        set => Set(ref _hash, value);
+    }
+
+    public string FlashStatus
+    {
+        get => _flashStatus;
+        set => Set(ref _flashStatus, value);
+    }
+
+    public string Logcat
+    {
+        get => _logcat;
+        set => Set(ref _logcat, value);
+    }
+
+    public string MagiskText
+    {
+        get => _magiskText;
+        set => Set(ref _magiskText, value);
+    }
+
+    public double Cpu
+    {
+        get => _cpu;
+        set => Set(ref _cpu, value);
+    }
+
+    public double Ram
+    {
+        get => _ram;
+        set => Set(ref _ram, value);
+    }
+
+    public double Battery
+    {
+        get => _battery;
+        set => Set(ref _battery, value);
+    }
+
+    public double BatteryTemp
+    {
+        get => _temp;
+        set => Set(ref _temp, value);
+    }
+
+    public DeviceInfo? SelectedDevice
+    {
+        get => _selected;
+        set => Set(ref _selected, value);
+    }
+
+    public AndroidDiagnostics? AndroidDiagnostics
+    {
+        get => _androidDiagnostics;
+        private set => Set(
+            ref _androidDiagnostics,
+            value);
+    }
+
+    public MagiskInfo? MagiskInfo
+    {
+        get => _magiskInfo;
+        private set => Set(
+            ref _magiskInfo,
+            value);
+    }
+
+    public RomPackage? CurrentRom
+    {
+        get => _currentRom;
+        private set => Set(
+            ref _currentRom,
+            value);
+    }
+
+    public FlashPlan? CurrentPlan
+    {
+        get => _currentPlan;
+        private set => Set(
+            ref _currentPlan,
+            value);
+    }
+
+    public ObservableCollection<DeviceInfo>
+        Devices { get; } = new();
+
+    public ObservableCollection<FlashTask>
+        FlashQueue =>
+        _queue.Items;
+
+    public IReadOnlyList<string>
+        Partitions { get; } =
+        new[]
+        {
+            "boot",
+            "init_boot",
+            "vendor_boot",
+            "dtbo",
+            "vbmeta",
+            "vbmeta_system",
+            "vbmeta_vendor",
+            "recovery"
+        };
+
+    public MainViewModel()
+    {
+        AppPaths.Ensure();
+
+        var timer =
+            new DispatcherTimer
+            {
+                Interval =
+                    TimeSpan.FromSeconds(1)
+            };
+
+        timer.Tick +=
+            async (_, _) =>
+            {
+                Clock =
+                    DateTime.Now.ToString(
+                        "yyyy-MM-dd HH:mm:ss");
+
+                if (SelectedDevice?.Transport ==
+                    Transport.Adb)
+                {
+                    var telemetry =
+                        await _android.TelemetryAsync(
+                            SelectedDevice);
+
+                    if (telemetry is not null)
+                    {
+                        Battery =
+                            telemetry.Battery;
+
+                        BatteryTemp =
+                            telemetry.Temperature;
+                    }
+                }
+            };
+
+        timer.Start();
+
+        _ = InitializeAsync();
+    }
+
+    private async Task InitializeAsync()
+    {
+        try
+        {
+            await _queue.LoadAsync();
+
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Status =
+                "Initialization error: " +
+                ex.Message;
+        }
+    }
+
+    public async Task RefreshAsync()
+    {
+        Devices.Clear();
+
+        foreach (
+            var device in
+            await _android.ScanAsync())
+        {
+            Devices.Add(device);
+        }
+
+        foreach (
+            var serial in
+            await _fastboot.DevicesAsync())
+        {
+            Devices.Add(
+                new DeviceInfo(
+                    serial,
+                    Transport.Fastboot,
+                    "fastboot",
+                    "Fastboot Device",
+                    "—",
+                    "—",
+                    "—",
+                    "—",
+                    "—",
+                    false,
+                    false));
+        }
+
+        SelectedDevice =
+            Devices.FirstOrDefault();
+
+        Status =
+            $"Detected {Devices.Count} device(s) | " +
+            $"ADB: {(_tools.Adb is null ? "MISSING" : "OK")} | " +
+            $"Fastboot: {(_tools.Fastboot is null ? "MISSING" : "OK")}";
+    }
+
+    public async Task RunCommandAsync()
+    {
+        var command =
+            Command.Trim();
+
+        if (command.Length == 0)
+        {
+            return;
+        }
+
+        var risk =
+            _risk.Assess(command);
+
+        AppendTerminal(
+            $"\r\n> {command}\r\n");
+
+        if (risk >= RiskLevel.High)
+        {
+            AppendTerminal(
+                $"BLOCKED [{risk}] " +
+                "Use the dedicated safety workflow.\r\n");
+
+            await _audit.WriteAsync(
+                "blocked-command",
+                command,
+                "blocked",
+                risk);
+
+            return;
+        }
+
+        if (command.StartsWith(
+                "adb ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            if (_tools.Adb is null)
+            {
+                AppendTerminal(
+                    "adb executable not found.\r\n");
+
+                return;
+            }
+
+            var args =
+                SplitArguments(
+                    command[4..]);
+
+            var progress =
+                new Progress<string>(
+                    line =>
+                    {
+                        AppendTerminal(
+                            line +
+                            Environment.NewLine);
+                    });
+
+            var result =
+                await new ProcessRunner().RunAsync(
+                    _tools.Adb,
+                    args,
+                    TimeSpan.FromMinutes(2),
+                    output: progress);
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.StdOut))
+            {
+                AppendTerminal(
+                    result.StdOut);
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    result.StdErr))
+            {
+                AppendTerminal(
+                    result.StdErr);
+            }
+
+            await _audit.WriteAsync(
+                "adb",
+                command,
+                result.ExitCode.ToString(),
+                risk);
+
+            return;
+        }
+
+        AppendTerminal(
+            "No registered executor for this command.\r\n");
+    }
+
+    public async Task DiagnoseAndroidAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Adb)
+        {
+            Status =
+                "Select an ADB Android device.";
+
+            return;
+        }
+
+        Status =
+            "Collecting Android diagnostics...";
+
+        AndroidDiagnostics =
+            await _diagnostics.CollectAsync(
+                SelectedDevice);
+
+        if (AndroidDiagnostics is null)
+        {
+            Status =
+                "Android diagnostics failed.";
+
+            return;
+        }
+
+        Battery =
+            AndroidDiagnostics.Battery.Level;
+
+        BatteryTemp =
+            AndroidDiagnostics.Battery.Temperature;
+
+        Status =
+            $"Diagnostics ready: " +
+            $"{AndroidDiagnostics.Manufacturer} " +
+            $"{AndroidDiagnostics.Model}";
+    }
+
+    public async Task LoadLogcatAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Adb)
+        {
+            Logcat =
+                "Select an ADB device.";
+
+            return;
+        }
+
+        Logcat =
+            await _android.LogcatAsync(
+                SelectedDevice.Serial);
+    }
+
+    public async Task RebootBootloaderAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Adb)
+        {
+            return;
+        }
+
+        if (!Confirm(
+                "Reboot the selected Android device into Bootloader?"))
+        {
+            return;
+        }
+
+        var result =
+            await _android.RebootAsync(
+                SelectedDevice.Serial,
+                "bootloader");
+
+        AppendTerminal(
+            result.StdOut +
+            result.StdErr);
+    }
+
+    public async Task RebootRecoveryAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Adb)
+        {
+            return;
+        }
+
+        if (!Confirm(
+                "Reboot the selected Android device into Recovery?"))
+        {
+            return;
+        }
+
+        var result =
+            await _android.RebootAsync(
+                SelectedDevice.Serial,
+                "recovery");
+
+        AppendTerminal(
+            result.StdOut +
+            result.StdErr);
+    }
+
+    public async Task InspectMagiskAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Adb)
+        {
+            MagiskText =
+                "Select an ADB device.";
+
+            return;
+        }
+
+        MagiskInfo =
+            await _magisk.InspectAsync(
+                SelectedDevice.Serial);
+
+        if (MagiskInfo is null)
+        {
+            MagiskText =
+                "Magisk inspection failed.";
+
+            return;
+        }
+
+        MagiskText =
+            $"Root: {MagiskInfo.RootDetected}\r\n" +
+            $"Magisk: {MagiskInfo.MagiskDetected}\r\n" +
+            $"Version: {MagiskInfo.Version}\r\n" +
+            $"Zygisk: {MagiskInfo.Zygisk}\r\n" +
+            $"DenyList: {MagiskInfo.DenyList}\r\n" +
+            $"Install: {MagiskInfo.InstallPath}";
+    }
+
+    public async Task RunSfcAsync()
+    {
+        if (!Confirm(
+                "Run SFC /scannow?"))
+        {
+            return;
+        }
+
+        var result =
+            await _repair.Sfc();
+
+        AppendTerminal(
+            result.StdOut +
+            result.StdErr);
+
+        await SaveHistory(
+            "SFC",
+            result);
+    }
+
+    public async Task RunDismCheckAsync()
+    {
+        if (!Confirm(
+                "Run DISM CheckHealth?"))
+        {
+            return;
+        }
+
+        var result =
+            await _repair.DismCheck();
+
+        AppendTerminal(
+            result.StdOut +
+            result.StdErr);
+
+        await SaveHistory(
+            "DISM CheckHealth",
+            result);
+    }
+
+    public async Task RunDismAsync()
+    {
+        if (!Confirm(
+                "Run DISM RestoreHealth?"))
+        {
+            return;
+        }
+
+        var result =
+            await _repair.DismRestore();
+
+        AppendTerminal(
+            result.StdOut +
+            result.StdErr);
+
+        await SaveHistory(
+            "DISM RestoreHealth",
+            result);
+    }
+
+    public async Task InspectFactoryAsync(
+        string path)
+    {
+        try
+        {
+            var package =
+                await _factory.InspectAsync(
+                    path);
+
+            CurrentRom =
+                package;
+
+            FactoryText =
+                $"{package.Name}\r\n" +
+                $"Product: {package.Product}\r\n" +
+                $"Build: {package.Build}\r\n" +
+                $"Region: {package.Region}\r\n" +
+                $"Images: {package.Images.Count}\r\n" +
+                $"Scripts: {string.Join(", ", package.Scripts)}\r\n\r\n" +
+                string.Join(
+                    "\r\n",
+                    package.Images.Select(
+                        x =>
+                            $"{x.Partition,-16} " +
+                            $"{x.Size,14} bytes  " +
+                            $"SHA {x.Sha256}" +
+                            (x.Critical
+                                ? "  [CRITICAL]"
+                                : "") ));
+
+            FlashPath =
+                path;
+
+            FlashHash =
+                package.Images
+                    .FirstOrDefault()
+                    ?.Sha256
+                    ?? "";
+        }
+        catch (Exception ex)
+        {
+            FactoryText =
+                "Inspection failed:\r\n" +
+                ex.Message;
+        }
+    }
+
+    public async Task BuildFlashPlanAsync()
+    {
+        if (CurrentRom is null)
+        {
+            PlanText =
+                "Load a ROM/factory package first.";
+
+            return;
+        }
+
+        if (SelectedDevice?.Transport !=
+            Transport.Fastboot)
+        {
+            PlanText =
+                "Select a Fastboot device.";
+
+            return;
+        }
+
+        var info =
+            await _fastboot.InspectAsync(
+                SelectedDevice.Serial);
+
+        if (info is null)
+        {
+            PlanText =
+                "Unable to inspect Fastboot device.";
+
+            return;
+        }
+
+        CurrentPlan =
+            _flashPlan.BuildPlan(
+                info,
+                CurrentRom);
+
+        PlanText =
+            $"Serial: {CurrentPlan.Serial}\r\n" +
+            $"Product: {CurrentPlan.Product}\r\n" +
+            $"Slot: {CurrentPlan.CurrentSlot}\r\n" +
+            $"Unlocked: {CurrentPlan.Unlocked}\r\n" +
+            $"Secure: {CurrentPlan.Secure}\r\n" +
+            $"Anti-Rollback: {CurrentPlan.AntiRollback}\r\n" +
+            $"Safe: {CurrentPlan.SafeToProceed}\r\n\r\n" +
+            "WARNINGS:\r\n" +
+            string.Join(
+                "\r\n",
+                CurrentPlan.Warnings.Select(
+                    x => " - " + x)) +
+            "\r\n\r\nITEMS:\r\n" +
+            string.Join(
+                "\r\n",
+                CurrentPlan.Items.Select(
+                    x =>
+                        $"{x.Partition,-16} " +
+                        $"{(x.Allowed ? "ALLOWED" : "BLOCKED"),-8} " +
+                        $"{x.Reason}"));
+    }
+
+    public async Task AddTaskAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Fastboot)
+        {
+            FlashStatus =
+                "Select a Fastboot device.";
+
+            return;
+        }
+
+        if (!_flashPlan.IsAllowedPartition(
+                FlashPartition))
+        {
+            FlashStatus =
+                $"Partition '{FlashPartition}' " +
+                "is not allowed in generic queue.";
+
+            return;
+        }
+
+        if (!File.Exists(
+                FlashPath))
+        {
+            FlashStatus =
+                "Select an image.";
+
+            return;
+        }
+
+        if (FlashHash.Length != 64 ||
+            FlashHash.Any(
+                c => !Uri.IsHexDigit(c)))
+        {
+            FlashStatus =
+                "SHA-256 must be 64 hex characters.";
+
+            return;
+        }
+
+        var file =
+            new FileInfo(
+                FlashPath);
+
+        var task =
+            new FlashTask
+            {
+                Id =
+                    Guid.NewGuid()
+                        .ToString("N"),
+
+                Serial =
+                    SelectedDevice.Serial,
+
+                Partition =
+                    FlashPartition,
+
+                ImagePath =
+                    Path.GetFullPath(
+                        FlashPath),
+
+                Sha256 =
+                    FlashHash.ToLowerInvariant(),
+
+                Size =
+                    file.Length,
+
+                State =
+                    TaskState.Queued,
+
+                Message =
+                    "Queued",
+
+                Progress =
+                    0,
+
+                Created =
+                    DateTime.Now,
+
+                Critical =
+                    FlashPartition.Equals(
+                        "boot",
+                        StringComparison.OrdinalIgnoreCase)
+                    ||
+                    FlashPartition.Equals(
+                        "init_boot",
+                        StringComparison.OrdinalIgnoreCase)
+                    ||
+                    FlashPartition.StartsWith(
+                        "vbmeta",
+                        StringComparison.OrdinalIgnoreCase)
+            };
+
+        _queue.Add(task);
+
+        await _queue.SaveAsync();
+
+        FlashStatus =
+            "Task queued.";
+    }
+
+    public async Task RunQueueAsync()
+    {
+        if (!Confirm(
+                "Start the REAL fastboot flash queue?\r\n\r\n" +
+                "Every image will be checked and " +
+                "each task requires individual confirmation."))
+        {
+            return;
+        }
+
+        await _queue.RunAsync(
+            async item =>
+            {
+                return await Application.Current.Dispatcher
+                    .InvokeAsync(
+                        () =>
+                            Confirm(
+                                $"FLASH {item.Partition}?\r\n\r\n" +
+                                $"Device: {item.Serial}\r\n" +
+                                $"Image: {Path.GetFileName(item.ImagePath)}\r\n" +
+                                $"SHA-256: {item.Sha256}\r\n\r\n" +
+                                (item.Critical
+                                    ? "WARNING: CRITICAL PARTITION\r\n"
+                                    : "")))
+                    .Task;
+            },
+            item =>
+            {
+                Application.Current.Dispatcher.Invoke(
+                    () =>
+                    {
+                        FlashStatus =
+                            $"{item.State}: {item.Message}";
+
+                        OnPropertyChanged(
+                            nameof(FlashQueue));
+                    });
+            });
+    }
+
+    public async Task CancelQueueAsync()
+    {
+        _queue.Cancel();
+
+        await Task.CompletedTask;
+
+        FlashStatus =
+            "Cancellation requested.";
+    }
+
+    public async Task RemoveTaskAsync(
+        FlashTask? task)
+    {
+        if (task is null)
+        {
+            return;
+        }
+
+        _queue.Remove(
+            task.Id);
+
+        await _queue.SaveAsync();
+    }
+
+    public async Task FastbootInfoAsync()
+    {
+        if (SelectedDevice?.Transport !=
+            Transport.Fastboot)
+        {
+            return;
+        }
+
+        var info =
+            await _fastboot.InspectAsync(
+                SelectedDevice.Serial);
+
+        if (info is null)
+        {
+            AppendTerminal(
+                "\r\nFASTBOOT: device inspection failed.\r\n");
+
+            return;
+        }
+
+        AppendTerminal(
+            "\r\nFASTBOOT\r\n" +
+            $"Serial: {info.Serial}\r\n" +
+            $"Product: {info.Product}\r\n" +
+            $"Variant: {info.Variant}\r\n" +
+            $"Slot: {info.Slot}\r\n" +
+            $"Unlocked: {info.Unlocked}\r\n" +
+            $"Secure: {info.Secure}\r\n" +
+            $"Anti-Rollback: {info.AntiRollback}\r\n\r\n" +
+            info.Raw +
+            "\r\n");
+    }
+
+    public async Task RunSshAsync()
+    {
+        var risk =
+            _risk.Assess(
+                "ssh " +
+                SshCommand);
+
+        if (risk >= RiskLevel.High)
+        {
+            SshOutput =
+                "Blocked by safety policy.";
+
+            await _audit.WriteAsync(
+                "blocked-ssh",
+                SshHost,
+                "blocked",
+                risk);
+
+            return;
+        }
+
+        var result =
+            await _ssh.RunAsync(
+                SshHost,
+                SshUser,
+                22,
+                SshCommand);
+
+        SshOutput =
+            result.StdOut +
+            result.StdErr;
+
+        await _audit.WriteAsync(
+            "ssh",
+            SshHost,
+            result.ExitCode.ToString(),
+            risk);
+    }
+
+    private async Task SaveHistory(
+        string action,
+        CommandResult result)
+    {
+        await _history.AddAsync(
+            new HistoryEntry(
+                DateTime.Now,
+                action,
+                "local",
+                result.ExitCode == 0
+                    ? "Success"
+                    : "Failed",
+                RiskLevel.Medium.ToString(),
+                result.StdOut +
+                result.StdErr));
+    }
+
+    private void AppendTerminal(
+        string text)
+    {
+        Terminal += text;
+
+        if (Terminal.Length > 500_000)
+        {
+            Terminal =
+                Terminal[^400_000..];
+        }
+    }
+
+    private static bool Confirm(
+        string text)
+    {
+        return MessageBox.Show(
+                   text,
+                   "TechFix Safety Confirmation",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning)
+               ==
+               MessageBoxResult.Yes;
+    }
+
+    private static IEnumerable<string>
+        SplitArguments(string text)
+    {
+        var result =
+            new List<string>();
+
+        var buffer =
+            new System.Text.StringBuilder();
+
+        var quoted = false;
+
+        foreach (var c in text)
+        {
+            if (c == '"')
+            {
+                quoted = !quoted;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(c) &&
+                !quoted)
+            {
+                if (buffer.Length > 0)
+                {
+                    result.Add(
+                        buffer.ToString());
+
+                    buffer.Clear();
+                }
+            }
+            else
+            {
+                buffer.Append(c);
+            }
+        }
+
+        if (buffer.Length > 0)
+        {
+            result.Add(
+                buffer.ToString());
+        }
+
+        return result;
+    }
+
+    private void Set<T>(
+        ref T field,
+        T value,
+        [CallerMemberName]
+        string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(
+                field,
+                value))
+        {
+            return;
+        }
+
+        field = value;
+
+        OnPropertyChanged(
+            propertyName);
+    }
+
+    private void OnPropertyChanged(
+        [CallerMemberName]
+        string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(
+                propertyName));
+    }
+}

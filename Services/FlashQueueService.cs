@@ -1,4 +1,4 @@
-using System.IO;
+using System.Collections.ObjectModel;
 using TechFixStudio.Infrastructure;
 using TechFixStudio.Models;
 
@@ -6,381 +6,361 @@ namespace TechFixStudio.Services;
 
 public sealed class FlashQueueService
 {
-    private readonly ProcessRunner _runner;
-    private readonly ToolLocator _tools;
-    private readonly Sha256Service _sha256;
-    private readonly AuditService _audit;
-    private readonly HistoryService _history;
+    private readonly JsonStore<FlashTask> _store =
+        new(AppPaths.Queue);
 
-    private static readonly string[] AllowedPartitions =
-    [
-        "boot",
-        "init_boot",
-        "vendor_boot",
-        "dtbo",
-        "vbmeta",
-        "recovery"
-    ];
+    private readonly FastbootService _fastboot =
+        new();
 
-    public FlashQueueService(
-        ProcessRunner runner,
-        ToolLocator tools,
-        Sha256Service sha256,
-        AuditService audit,
-        HistoryService history)
+    private readonly Sha256Service _sha =
+        new();
+
+    private readonly FlashPlanService _plan =
+        new();
+
+    private CancellationTokenSource? _cts;
+
+    public ObservableCollection<FlashTask> Items { get; } =
+        new();
+
+    public bool Running { get; private set; }
+
+    public async Task LoadAsync(
+        CancellationToken ct = default)
     {
-        _runner = runner;
-        _tools = tools;
-        _sha256 = sha256;
-        _audit = audit;
-        _history = history;
+        Items.Clear();
+
+        var loaded =
+            await _store.LoadAsync(ct);
+
+        foreach (var item in loaded)
+        {
+            Items.Add(item);
+        }
     }
 
-    public async Task<List<FlashTask>> LoadAsync()
+    public Task SaveAsync(
+        CancellationToken ct = default)
     {
-        return await LoadInternalAsync();
+        return _store.SaveAsync(
+            Items,
+            ct);
     }
 
-    public async Task AddAsync(
+    public void Add(
         FlashTask task)
     {
-        ValidateTask(task);
-
-        var tasks =
-            await LoadInternalAsync();
-
-        tasks.Add(task);
-
-        await SaveInternalAsync(tasks);
+        Items.Add(task);
     }
 
-    public async Task RemoveAsync(
-        Guid id)
+    public void Remove(
+        string id)
     {
-        var tasks =
-            await LoadInternalAsync();
-
-        tasks.RemoveAll(
-            x => x.Id == id &&
-                 x.State == FlashTaskState.Queued);
-
-        await SaveInternalAsync(tasks);
-    }
-
-    public async Task CancelAsync(
-        Guid id)
-    {
-        var tasks =
-            await LoadInternalAsync();
-
-        var task =
-            tasks.FirstOrDefault(
+        var item =
+            Items.FirstOrDefault(
                 x => x.Id == id);
 
-        if (task is null)
+        if (item is not null &&
+            item.State != TaskState.Running)
+        {
+            Items.Remove(item);
+        }
+    }
+
+    public void Cancel()
+    {
+        _cts?.Cancel();
+    }
+
+    public async Task RunAsync(
+        Func<FlashTask, Task<bool>> confirm,
+        Action<FlashTask>? changed = null,
+        CancellationToken externalToken = default)
+    {
+        if (Running)
         {
             return;
         }
 
-        if (task.State is
-            FlashTaskState.Queued or
-            FlashTaskState.Preflight or
-            FlashTaskState.Hashing or
-            FlashTaskState.WaitingForConfirmation)
-        {
-            task.State =
-                FlashTaskState.Cancelled;
+        Running = true;
 
-            task.Message =
-                "任务已取消。";
-        }
+        using var linked =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                externalToken);
 
-        await SaveInternalAsync(tasks);
-    }
-
-    public async Task ExecuteAsync(
-        Guid taskId,
-        Func<FlashTask, Task<bool>> confirmation,
-        CancellationToken cancellationToken = default)
-    {
-        var tasks =
-            await LoadInternalAsync();
-
-        var task =
-            tasks.FirstOrDefault(
-                x => x.Id == taskId);
-
-        if (task is null)
-        {
-            throw new InvalidOperationException(
-                "找不到刷机任务。");
-        }
+        _cts = linked;
 
         try
         {
-            task.State =
-                FlashTaskState.Preflight;
+            var queue =
+                Items
+                    .Where(
+                        x => x.State == TaskState.Queued)
+                    .ToList();
 
-            task.Message =
-                "正在执行设备预检。";
-
-            await SaveInternalAsync(tasks);
-
-            ValidateTask(task);
-
-            var fastboot =
-                _tools.FastbootPath
-                ?? throw new InvalidOperationException(
-                    "未找到 fastboot.exe。");
-
-            task.State =
-                FlashTaskState.Hashing;
-
-            task.Message =
-                "正在计算镜像 SHA-256。";
-
-            await SaveInternalAsync(tasks);
-
-            task.ActualSha256 =
-                await _sha256.CalculateAsync(
-                    task.ImagePath,
-                    cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(
-                    task.ExpectedSha256) &&
-                !string.Equals(
-                    task.ActualSha256,
-                    NormalizeHash(
-                        task.ExpectedSha256),
-                    StringComparison.OrdinalIgnoreCase))
+            foreach (var item in queue)
             {
-                throw new InvalidOperationException(
-                    "SHA-256 校验失败，已阻止刷写。");
+                linked.Token.ThrowIfCancellationRequested();
+
+                await RunOneAsync(
+                    item,
+                    confirm,
+                    changed,
+                    linked.Token);
             }
-
-            task.State =
-                FlashTaskState.WaitingForConfirmation;
-
-            task.Message =
-                "等待用户确认。";
-
-            await SaveInternalAsync(tasks);
-
-            var approved =
-                await confirmation(task);
-
-            if (!approved)
-            {
-                task.State =
-                    FlashTaskState.Cancelled;
-
-                task.Message =
-                    "用户取消刷写。";
-
-                await SaveInternalAsync(tasks);
-
-                await _audit.WriteAsync(
-                    "Flash",
-                    $"{task.Serial}:{task.Partition}",
-                    RiskLevel.Critical,
-                    false,
-                    "用户取消");
-
-                return;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            task.State =
-                FlashTaskState.Flashing;
-
-            task.StartedUtc =
-                DateTime.UtcNow;
-
-            task.Progress = 0;
-
-            task.Message =
-                $"正在刷写 {task.Partition}";
-
-            await SaveInternalAsync(tasks);
-
-            await _audit.WriteAsync(
-                "FlashStart",
-                $"{task.Serial}:{task.Partition}",
-                RiskLevel.Critical,
-                true,
-                task.ImagePath);
-
-            var result =
-                await _runner.RunAsync(
-                    fastboot,
-                    [
-                        "-s",
-                        task.Serial,
-                        "flash",
-                        task.Partition,
-                        task.ImagePath
-                    ],
-                    TimeSpan.FromMinutes(15),
-                    cancellationToken);
-
-            task.Progress = 100;
-
-            if (result.Success)
-            {
-                task.State =
-                    FlashTaskState.Succeeded;
-
-                task.Message =
-                    result.StdOut +
-                    Environment.NewLine +
-                    result.StdErr;
-
-                await _audit.WriteAsync(
-                    "Flash",
-                    $"{task.Serial}:{task.Partition}",
-                    RiskLevel.Critical,
-                    true,
-                    task.Message);
-
-                await _history.AddAsync(
-                    "Flash",
-                    task.Serial,
-                    "Succeeded",
-                    task.Message);
-            }
-            else
-            {
-                task.State =
-                    FlashTaskState.Failed;
-
-                task.Message =
-                    result.StdErr;
-
-                await _audit.WriteAsync(
-                    "Flash",
-                    $"{task.Serial}:{task.Partition}",
-                    RiskLevel.Critical,
-                    false,
-                    task.Message);
-
-                await _history.AddAsync(
-                    "Flash",
-                    task.Serial,
-                    "Failed",
-                    task.Message);
-            }
-
-            task.FinishedUtc =
-                DateTime.UtcNow;
-
-            await SaveInternalAsync(tasks);
         }
         catch (OperationCanceledException)
         {
-            task.State =
-                FlashTaskState.Cancelled;
-
-            task.Message =
-                "任务被取消。";
-
-            task.FinishedUtc =
-                DateTime.UtcNow;
-
-            await SaveInternalAsync(tasks);
+            foreach (var item in Items)
+            {
+                if (item.State ==
+                        TaskState.Running ||
+                    item.State ==
+                        TaskState.Hashing ||
+                    item.State ==
+                        TaskState.Preflight)
+                {
+                    SetState(
+                        item,
+                        TaskState.Cancelled,
+                        "Cancelled.",
+                        0,
+                        changed);
+                }
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            task.State =
-                FlashTaskState.Failed;
+            Running = false;
 
-            task.Message =
-                ex.Message;
+            _cts = null;
 
-            task.FinishedUtc =
-                DateTime.UtcNow;
-
-            await SaveInternalAsync(tasks);
-
-            await _audit.WriteAsync(
-                "Flash",
-                $"{task.Serial}:{task.Partition}",
-                RiskLevel.Critical,
-                false,
-                ex.ToString());
-
-            await _history.AddAsync(
-                "Flash",
-                task.Serial,
-                "Failed",
-                ex.ToString());
+            await SaveAsync();
         }
     }
 
-    private static void ValidateTask(
-        FlashTask task)
+    private async Task RunOneAsync(
+        FlashTask item,
+        Func<FlashTask, Task<bool>> confirm,
+        Action<FlashTask>? changed,
+        CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(
-                task.Serial))
+        item.Started = DateTime.Now;
+
+        if (!_plan.IsAllowedPartition(
+                item.Partition))
         {
-            throw new ArgumentException(
-                "设备 Serial 不能为空。");
+            SetState(
+                item,
+                TaskState.Failed,
+                $"Partition '{item.Partition}' is not allowed in generic queue.",
+                0,
+                changed);
+
+            return;
         }
 
-        if (string.IsNullOrWhiteSpace(
-                task.Partition))
+        SetState(
+            item,
+            TaskState.Preflight,
+            "Checking fastboot device...",
+            2,
+            changed);
+
+        var info =
+            await _fastboot.InspectAsync(
+                item.Serial,
+                ct);
+
+        if (info is null)
         {
-            throw new ArgumentException(
-                "分区不能为空。");
+            SetState(
+                item,
+                TaskState.Failed,
+                "Fastboot device not available.",
+                0,
+                changed);
+
+            return;
         }
 
-        if (!AllowedPartitions.Contains(
-                task.Partition,
-                StringComparer.OrdinalIgnoreCase))
+        if (!File.Exists(item.ImagePath))
         {
-            throw new InvalidOperationException(
-                $"分区 {task.Partition} 不在受控刷写白名单中。");
+            SetState(
+                item,
+                TaskState.Failed,
+                "Image file does not exist.",
+                0,
+                changed);
+
+            return;
         }
 
-        if (!File.Exists(
-                task.ImagePath))
+        if (!FastbootParser.IsTrue(
+                info.Unlocked))
         {
-            throw new FileNotFoundException(
-                "镜像文件不存在。",
-                task.ImagePath);
+            SetState(
+                item,
+                TaskState.Failed,
+                "Bootloader is not reported as unlocked.",
+                0,
+                changed);
+
+            return;
         }
+
+        var file =
+            new FileInfo(item.ImagePath);
+
+        if (item.Size > 0 &&
+            file.Length != item.Size)
+        {
+            SetState(
+                item,
+                TaskState.Failed,
+                $"File size changed. Expected {item.Size}, actual {file.Length}.",
+                0,
+                changed);
+
+            return;
+        }
+
+        SetState(
+            item,
+            TaskState.Hashing,
+            "Calculating SHA-256...",
+            5,
+            changed);
+
+        var hashProgress =
+            new Progress<double>(
+                value =>
+                {
+                    SetState(
+                        item,
+                        TaskState.Hashing,
+                        $"SHA-256 {value:F0}%",
+                        5 + value * 0.15,
+                        changed);
+                });
+
+        var hash =
+            await _sha.HashAsync(
+                item.ImagePath,
+                hashProgress,
+                ct);
+
+        if (!hash.Equals(
+                item.Sha256,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            SetState(
+                item,
+                TaskState.Failed,
+                "SHA-256 mismatch.",
+                0,
+                changed);
+
+            return;
+        }
+
+        SetState(
+            item,
+            TaskState.AwaitingConfirmation,
+            item.Critical
+                ? "Critical partition requires confirmation."
+                : "Waiting for confirmation.",
+            20,
+            changed);
+
+        var approved =
+            await confirm(item);
+
+        if (!approved)
+        {
+            SetState(
+                item,
+                TaskState.Cancelled,
+                "User cancelled.",
+                0,
+                changed);
+
+            return;
+        }
+
+        item.Confirmed = true;
+
+        SetState(
+            item,
+            TaskState.Running,
+            "Flashing...",
+            25,
+            changed);
+
+        var output =
+            new Progress<string>(
+                line =>
+                {
+                    item.Message = line;
+
+                    changed?.Invoke(item);
+                });
+
+        var result =
+            await _fastboot.FlashAsync(
+                item.Serial,
+                item.Partition,
+                item.ImagePath,
+                ct,
+                output);
+
+        if (result.ExitCode == 0)
+        {
+            SetState(
+                item,
+                TaskState.Success,
+                "Flash complete.",
+                100,
+                changed);
+        }
+        else
+        {
+            var message =
+                string.IsNullOrWhiteSpace(
+                    result.StdErr)
+                    ? result.StdOut
+                    : result.StdErr;
+
+            SetState(
+                item,
+                TaskState.Failed,
+                message.Trim(),
+                0,
+                changed);
+        }
+
+        item.Finished = DateTime.Now;
+
+        await SaveAsync(ct);
     }
 
-    private async Task<List<FlashTask>>
-        LoadInternalAsync()
+    private static void SetState(
+        FlashTask item,
+        TaskState state,
+        string message,
+        double progress,
+        Action<FlashTask>? changed)
     {
-        var store = new JsonStore();
+        item.State = state;
 
-        return await store.LoadAsync<
-                   List<FlashTask>>(
-                   AppPaths.FlashQueueFile)
-               ?? [];
-    }
+        item.Message = message;
 
-    private async Task SaveInternalAsync(
-        List<FlashTask> tasks)
-    {
-        var store = new JsonStore();
+        item.Progress =
+            Math.Clamp(
+                progress,
+                0,
+                100);
 
-        await store.SaveAsync(
-            AppPaths.FlashQueueFile,
-            tasks);
-    }
-
-    private static string NormalizeHash(
-        string value)
-    {
-        return value
-            .Trim()
-            .Replace(" ", "")
-            .Replace("-", "")
-            .ToLowerInvariant();
+        changed?.Invoke(item);
     }
 }
-
-

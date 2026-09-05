@@ -1,4 +1,3 @@
-using System.IO;
 using System.Diagnostics;
 using System.Text;
 using TechFixStudio.Models;
@@ -8,121 +7,184 @@ namespace TechFixStudio.Services;
 public sealed class ProcessRunner
 {
     public async Task<CommandResult> RunAsync(
-        string executable,
-        IEnumerable<string> arguments,
+        string file,
+        IEnumerable<string> args,
         TimeSpan timeout,
-        CancellationToken cancellationToken = default)
+        CancellationToken ct = default,
+        IProgress<string>? output = null)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
-        var stdout = new StringBuilder();
-        var stderr = new StringBuilder();
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            return new CommandResult(
+                -10,
+                "",
+                "Executable path is empty.",
+                sw.Elapsed,
+                false);
+        }
 
         using var process = new Process();
 
         process.StartInfo = new ProcessStartInfo
         {
-            FileName = executable,
+            FileName = file,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
 
-        foreach (var argument in arguments)
+        foreach (var arg in args)
         {
-            process.StartInfo.ArgumentList.Add(argument);
+            process.StartInfo.ArgumentList.Add(arg);
         }
 
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-            {
-                lock (stdout)
-                {
-                    stdout.AppendLine(e.Data);
-                }
-            }
-        };
-
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-            {
-                lock (stderr)
-                {
-                    stderr.AppendLine(e.Data);
-                }
-            }
-        };
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
 
         try
         {
             if (!process.Start())
             {
-                return new CommandResult
-                {
-                    ExitCode = -1,
-                    StdErr = "无法启动进程。",
-                    Duration = stopwatch.Elapsed
-                };
+                return new CommandResult(
+                    -1,
+                    "",
+                    "Process failed to start.",
+                    sw.Elapsed,
+                    false);
             }
 
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+            var stdoutTask = ReadStreamAsync(
+                process.StandardOutput,
+                stdout,
+                output,
+                false,
+                ct);
 
-            using var timeoutCts =
-                CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken);
+            var stderrTask = ReadStreamAsync(
+                process.StandardError,
+                stderr,
+                output,
+                true,
+                ct);
 
-            timeoutCts.CancelAfter(timeout);
+            var waitTask = process.WaitForExitAsync(ct);
 
-            try
+            var timeoutTask = Task.Delay(timeout, ct);
+
+            var completed = await Task.WhenAny(
+                waitTask,
+                timeoutTask);
+
+            if (completed == timeoutTask &&
+                !waitTask.IsCompleted)
             {
-                await process.WaitForExitAsync(
-                    timeoutCts.Token);
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(true);
+                    }
+                }
+                catch
+                {
+                }
+
+                await Task.WhenAll(
+                    IgnoreCancellation(stdoutTask),
+                    IgnoreCancellation(stderrTask));
+
+                return new CommandResult(
+                    -2,
+                    stdout.ToString(),
+                    stderr.ToString(),
+                    sw.Elapsed,
+                    true);
             }
-            catch (OperationCanceledException)
+
+            await waitTask;
+
+            await Task.WhenAll(
+                stdoutTask,
+                stderrTask);
+
+            return new CommandResult(
+                process.ExitCode,
+                stdout.ToString(),
+                stderr.ToString(),
+                sw.Elapsed,
+                false);
+        }
+        catch (OperationCanceledException)
+        {
+            try
             {
                 if (!process.HasExited)
                 {
-                    try
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                    catch
-                    {
-                        // Ignore cleanup failure.
-                    }
+                    process.Kill(true);
                 }
-
-                return new CommandResult
-                {
-                    ExitCode = -1,
-                    StdOut = stdout.ToString(),
-                    StdErr = stderr.ToString(),
-                    Duration = stopwatch.Elapsed,
-                    TimedOut = !cancellationToken.IsCancellationRequested
-                };
+            }
+            catch
+            {
             }
 
-            return new CommandResult
-            {
-                ExitCode = process.ExitCode,
-                StdOut = stdout.ToString(),
-                StdErr = stderr.ToString(),
-                Duration = stopwatch.Elapsed
-            };
+            return new CommandResult(
+                -3,
+                stdout.ToString(),
+                stderr.ToString(),
+                sw.Elapsed,
+                false);
         }
         catch (Exception ex)
         {
-            return new CommandResult
+            return new CommandResult(
+                -4,
+                stdout.ToString(),
+                stderr + Environment.NewLine + ex.Message,
+                sw.Elapsed,
+                false);
+        }
+    }
+
+    private static async Task ReadStreamAsync(
+        StreamReader reader,
+        StringBuilder buffer,
+        IProgress<string>? output,
+        bool error,
+        CancellationToken ct)
+    {
+        while (!reader.EndOfStream)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var line = await reader.ReadLineAsync(ct);
+
+            if (line is null)
             {
-                ExitCode = -1,
-                StdOut = stdout.ToString(),
-                StdErr = ex.Message,
-                Duration = stopwatch.Elapsed
-            };
+                break;
+            }
+
+            buffer.AppendLine(line);
+
+            output?.Report(
+                error
+                    ? $"[ERR] {line}"
+                    : line);
+        }
+    }
+
+    private static async Task IgnoreCancellation(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch
+        {
         }
     }
 }

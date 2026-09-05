@@ -1,198 +1,199 @@
-using System.IO;
 using TechFixStudio.Models;
 
 namespace TechFixStudio.Services;
 
 public sealed class FastbootService
 {
-    private readonly ProcessRunner _runner;
-    private readonly ToolLocator _tools;
+    private readonly ToolLocator _tools = new();
+    private readonly ProcessRunner _runner = new();
 
-    public FastbootService(
-        ProcessRunner runner,
-        ToolLocator tools)
+    public async Task<List<string>> DevicesAsync(
+        CancellationToken ct = default)
     {
-        _runner = runner;
-        _tools = tools;
-    }
+        var result = new List<string>();
 
-    public async Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var fastboot = _tools.FastbootPath;
-
-        if (fastboot is null)
+        if (_tools.Fastboot is null)
         {
-            return [];
+            return result;
         }
 
-        var result = await _runner.RunAsync(
-            fastboot,
-            ["devices"],
+        var r = await _runner.RunAsync(
+            _tools.Fastboot,
+            new[] { "devices" },
             TimeSpan.FromSeconds(15),
-            cancellationToken);
+            ct);
 
-        if (!result.Success)
+        foreach (var line in r.StdOut.Split(
+                     new[] { '\r', '\n' },
+                     StringSplitOptions.RemoveEmptyEntries))
         {
-            return [];
-        }
-
-        var devices = new List<DeviceInfo>();
-
-        using var reader =
-            new StringReader(result.StdOut);
-
-        string? line;
-
-        while ((line = reader.ReadLine()) != null)
-        {
-            var parts =
-                line.Split(
-                    '\t',
+            var parts = line.Trim()
+                .Split(
+                    ' ',
                     StringSplitOptions.RemoveEmptyEntries);
 
-            if (parts.Length == 0)
+            if (parts.Length > 0)
             {
-                continue;
+                result.Add(parts[0]);
             }
-
-            devices.Add(
-                new DeviceInfo
-                {
-                    Transport = TransportType.Fastboot,
-                    Serial = parts[0].Trim(),
-                    State = "fastboot",
-                    LastUpdatedUtc = DateTime.UtcNow
-                });
         }
 
-        foreach (var device in devices)
-        {
-            await EnrichAsync(
-                device,
-                cancellationToken);
-        }
-
-        return devices;
+        return result;
     }
 
-    public async Task<string> GetVarAllAsync(
+    public async Task<FastbootInfo?> InspectAsync(
         string serial,
-        CancellationToken cancellationToken = default)
+        CancellationToken ct = default)
     {
-        var fastboot = _tools.FastbootPath;
-
-        if (fastboot is null)
+        if (_tools.Fastboot is null ||
+            string.IsNullOrWhiteSpace(serial))
         {
-            throw new InvalidOperationException(
-                "未找到 fastboot.exe。");
+            return null;
         }
 
-        var result = await _runner.RunAsync(
-            fastboot,
-            ["-s", serial, "getvar", "all"],
-            TimeSpan.FromSeconds(30),
-            cancellationToken);
+        var r = await _runner.RunAsync(
+            _tools.Fastboot,
+            new[]
+            {
+                "-s",
+                serial,
+                "getvar",
+                "all"
+            },
+            TimeSpan.FromSeconds(20),
+            ct);
 
-        return result.StdOut +
-               Environment.NewLine +
-               result.StdErr;
+        var raw = (r.StdOut +
+                   Environment.NewLine +
+                   r.StdErr).Trim();
+
+        var values = FastbootParser.Parse(raw);
+
+        var product = FastbootParser.Get(
+            values,
+            "product",
+            "product-name");
+
+        var variant = FastbootParser.Get(
+            values,
+            "variant");
+
+        var slot = FastbootParser.Get(
+            values,
+            "current-slot",
+            "slot");
+
+        var unlocked = FastbootParser.Get(
+            values,
+            "unlocked",
+            "secure-state");
+
+        var secure = FastbootParser.Get(
+            values,
+            "secure");
+
+        var antiRollback = FastbootParser.Get(
+            values,
+            "anti",
+            "anti-rollback",
+            "anti-rollback-version");
+
+        return new FastbootInfo(
+            serial,
+            product,
+            variant,
+            slot,
+            unlocked,
+            secure,
+            antiRollback,
+            raw);
+    }
+
+    public async Task<CommandResult> FlashAsync(
+        string serial,
+        string partition,
+        string imagePath,
+        CancellationToken ct = default,
+        IProgress<string>? output = null)
+    {
+        if (_tools.Fastboot is null)
+        {
+            return new CommandResult(
+                -10,
+                "",
+                "fastboot executable not found.",
+                TimeSpan.Zero,
+                false);
+        }
+
+        return await _runner.RunAsync(
+            _tools.Fastboot,
+            new[]
+            {
+                "-s",
+                serial,
+                "flash",
+                partition,
+                imagePath
+            },
+            TimeSpan.FromMinutes(10),
+            ct,
+            output);
     }
 
     public async Task<CommandResult> RebootAsync(
         string serial,
-        CancellationToken cancellationToken = default)
+        string target,
+        CancellationToken ct = default)
     {
-        var fastboot = _tools.FastbootPath;
-
-        if (fastboot is null)
+        if (_tools.Fastboot is null)
         {
-            throw new InvalidOperationException(
-                "未找到 fastboot.exe。");
+            return new CommandResult(
+                -10,
+                "",
+                "fastboot executable not found.",
+                TimeSpan.Zero,
+                false);
         }
 
         return await _runner.RunAsync(
-            fastboot,
-            ["-s", serial, "reboot"],
-            TimeSpan.FromSeconds(30),
-            cancellationToken);
-    }
-
-    private async Task EnrichAsync(
-        DeviceInfo device,
-        CancellationToken cancellationToken)
-    {
-        device.RawFastbootInfo =
-            await GetVarAllAsync(
-                device.Serial,
-                cancellationToken);
-
-        var data = device.RawFastbootInfo;
-
-        device.Product =
-            ReadVar(data, "product");
-
-        device.CurrentSlot =
-            ReadVar(data, "current-slot");
-
-        if (string.IsNullOrWhiteSpace(
-                device.CurrentSlot))
-        {
-            device.CurrentSlot =
-                ReadVar(data, "slot-current");
-        }
-
-        var unlocked =
-            ReadVar(data, "unlocked");
-
-        device.BootloaderUnlocked =
-            unlocked.Equals(
-                "yes",
-                StringComparison.OrdinalIgnoreCase);
-
-        var secure =
-            ReadVar(data, "secure");
-
-        device.AvbEnabled =
-            secure.Equals(
-                "yes",
-                StringComparison.OrdinalIgnoreCase);
-
-        device.AntiRollback =
-            ReadVar(data, "anti");
-
-        device.LastUpdatedUtc =
-            DateTime.UtcNow;
-    }
-
-    private static string ReadVar(
-        string text,
-        string key)
-    {
-        foreach (var line in text.Split(
-                     ['\r', '\n'],
-                     StringSplitOptions.RemoveEmptyEntries))
-        {
-            var trimmed = line.Trim();
-
-            var marker =
-                $"{key}:";
-
-            var index =
-                trimmed.IndexOf(
-                    marker,
-                    StringComparison.OrdinalIgnoreCase);
-
-            if (index < 0)
+            _tools.Fastboot,
+            new[]
             {
-                continue;
-            }
+                "-s",
+                serial,
+                "reboot",
+                target
+            },
+            TimeSpan.FromSeconds(30),
+            ct);
+    }
 
-            return trimmed[
-                (index + marker.Length)..]
-                .Trim();
+    public async Task<CommandResult> GetVarAsync(
+        string serial,
+        string variable,
+        CancellationToken ct = default)
+    {
+        if (_tools.Fastboot is null)
+        {
+            return new CommandResult(
+                -10,
+                "",
+                "fastboot executable not found.",
+                TimeSpan.Zero,
+                false);
         }
 
-        return string.Empty;
+        return await _runner.RunAsync(
+            _tools.Fastboot,
+            new[]
+            {
+                "-s",
+                serial,
+                "getvar",
+                variable
+            },
+            TimeSpan.FromSeconds(20),
+            ct);
     }
 }

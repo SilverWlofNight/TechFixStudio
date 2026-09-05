@@ -1,4 +1,3 @@
-using System.IO;
 using System.IO.Compression;
 using TechFixStudio.Models;
 
@@ -6,108 +5,302 @@ namespace TechFixStudio.Services;
 
 public sealed class FactoryImageService
 {
-    private readonly Sha256Service _sha256;
+    private readonly Sha256Service _sha = new();
 
-    public FactoryImageService(
-        Sha256Service sha256)
+    private static readonly string[] KnownPartitions =
     {
-        _sha256 = sha256;
-    }
+        "vbmeta_system",
+        "vbmeta_vendor",
+        "vendor_boot",
+        "init_boot",
+        "vbmeta",
+        "system_ext",
+        "userdata",
+        "recovery",
+        "product",
+        "vendor",
+        "odm",
+        "system",
+        "super",
+        "boot",
+        "dtbo"
+    };
 
-    public async Task<IReadOnlyList<string>>
-        AnalyzeAsync(
-            string filePath,
-            CancellationToken cancellationToken = default)
+    private static readonly HashSet<string> CriticalPartitions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "boot",
+            "init_boot",
+            "vbmeta",
+            "vbmeta_system",
+            "vbmeta_vendor",
+            "super"
+        };
+
+    public async Task<RomPackage> InspectAsync(
+        string path,
+        CancellationToken ct = default)
     {
-        if (!File.Exists(filePath))
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException(
+                "Package path is empty.",
+                nameof(path));
+        }
+
+        if (!File.Exists(path))
         {
             throw new FileNotFoundException(
-                "ROM 文件不存在。",
-                filePath);
+                "Package does not exist.",
+                path);
         }
 
-        var extension =
-            Path.GetExtension(filePath)
-                .ToLowerInvariant();
+        var images = new List<RomImage>();
 
-        return extension switch
+        var scripts = new List<string>();
+
+        if (path.EndsWith(
+                ".zip",
+                StringComparison.OrdinalIgnoreCase))
         {
-            ".img" or ".bin" =>
-                [
-                    await BuildDescriptionAsync(
-                        filePath,
-                        cancellationToken)
-                ],
+            using var archive =
+                ZipFile.OpenRead(path);
 
-            ".zip" =>
-                await AnalyzeZipAsync(
-                    filePath,
-                    cancellationToken),
+            foreach (var entry in archive.Entries)
+            {
+                ct.ThrowIfCancellationRequested();
 
-            _ =>
-                []
-        };
+                if (string.IsNullOrWhiteSpace(
+                        entry.Name))
+                {
+                    continue;
+                }
+
+                var name =
+                    entry.Name;
+
+                if (IsFlashScript(name))
+                {
+                    scripts.Add(name);
+                }
+
+                var extension =
+                    Path.GetExtension(name);
+
+                if (!extension.Equals(
+                        ".img",
+                        StringComparison.OrdinalIgnoreCase)
+                    &&
+                    !extension.Equals(
+                        ".bin",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var partition =
+                    GuessPartition(
+                        entry.Name);
+
+                var temp =
+                    Path.Combine(
+                        Path.GetTempPath(),
+                        "TechFixStudio",
+                        Guid.NewGuid().ToString("N") +
+                        extension);
+
+                Directory.CreateDirectory(
+                    Path.GetDirectoryName(temp)!);
+
+                try
+                {
+                    await using (
+                        var input =
+                            entry.Open())
+                    await using (
+                        var output =
+                            File.Create(temp))
+                    {
+                        await input.CopyToAsync(
+                            output,
+                            ct);
+                    }
+
+                    var info =
+                        new FileInfo(temp);
+
+                    var hash =
+                        await _sha.HashAsync(
+                            temp,
+                            null,
+                            ct);
+
+                    images.Add(
+                        new RomImage(
+                            partition,
+                            entry.FullName,
+                            info.Length,
+                            hash,
+                            CriticalPartitions.Contains(
+                                partition)));
+                }
+                finally
+                {
+                    try
+                    {
+                        if (File.Exists(temp))
+                        {
+                            File.Delete(temp);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+        else
+        {
+            var partition =
+                GuessPartition(
+                    Path.GetFileName(path));
+
+            var info =
+                new FileInfo(path);
+
+            var hash =
+                await _sha.HashAsync(
+                    path,
+                    null,
+                    ct);
+
+            images.Add(
+                new RomImage(
+                    partition,
+                    path,
+                    info.Length,
+                    hash,
+                    CriticalPartitions.Contains(
+                        partition)));
+        }
+
+        var product =
+            GuessProduct(path);
+
+        var build =
+            GuessBuild(path);
+
+        var region =
+            GuessRegion(path);
+
+        return new RomPackage(
+            Path.GetFileName(path),
+            product,
+            build,
+            region,
+            images,
+            scripts,
+            path);
     }
 
-    private async Task<List<string>> AnalyzeZipAsync(
-        string filePath,
-        CancellationToken cancellationToken)
+    private static bool IsFlashScript(
+        string path)
     {
-        var result = new List<string>();
+        var file =
+            Path.GetFileName(path);
 
-        using var archive =
-            ZipFile.OpenRead(filePath);
+        return file.StartsWith(
+                   "flash-all",
+                   StringComparison.OrdinalIgnoreCase)
+               || file.EndsWith(
+                   ".bat",
+                   StringComparison.OrdinalIgnoreCase)
+               || file.EndsWith(
+                   ".cmd",
+                   StringComparison.OrdinalIgnoreCase)
+               || file.EndsWith(
+                   ".sh",
+                   StringComparison.OrdinalIgnoreCase);
+    }
 
-        foreach (var entry in archive.Entries)
+    public static string GuessPartition(
+        string fileName)
+    {
+        var baseName =
+            Path.GetFileNameWithoutExtension(
+                fileName)
+            .ToLowerInvariant();
+
+        foreach (var partition in
+                 KnownPartitions.OrderByDescending(
+                     x => x.Length))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (string.IsNullOrWhiteSpace(
-                    entry.Name))
-            {
-                continue;
-            }
-
-            var extension =
-                Path.GetExtension(entry.Name)
-                    .ToLowerInvariant();
-
-            if (extension is
-                ".img" or
-                ".bin")
-            {
-                result.Add(
-                    $"{entry.FullName} | {entry.Length:N0} bytes");
-            }
-            else if (
-                entry.Name.Equals(
-                    "flash-all.bat",
-                    StringComparison.OrdinalIgnoreCase) ||
-                entry.Name.Equals(
-                    "flash-all.sh",
+            if (baseName.Contains(
+                    partition,
                     StringComparison.OrdinalIgnoreCase))
             {
-                result.Add(
-                    $"SCRIPT | {entry.FullName}");
+                return partition;
             }
         }
 
-        return result;
+        return "unknown";
     }
 
-    private async Task<string>
-        BuildDescriptionAsync(
-            string path,
-            CancellationToken cancellationToken)
+    private static string GuessProduct(
+        string path)
     {
-        var hash =
-            await _sha256.CalculateAsync(
-                path,
-                cancellationToken);
+        var name =
+            Path.GetFileNameWithoutExtension(path);
 
-        return
-            $"{Path.GetFileName(path)} | " +
-            $"{new FileInfo(path).Length:N0} bytes | " +
-            $"SHA256={hash}";
+        var tokens =
+            name.Split(
+                new[] { '-', '_', ' ' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+        return tokens.Length > 0
+            ? tokens[0]
+            : "—";
+    }
+
+    private static string GuessBuild(
+        string path)
+    {
+        var name =
+            Path.GetFileNameWithoutExtension(path);
+
+        var parts =
+            name.Split(
+                new[] { '-', '_' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+        return parts.Length >= 2
+            ? parts[^1]
+            : "—";
+    }
+
+    private static string GuessRegion(
+        string path)
+    {
+        var upper =
+            Path.GetFileNameWithoutExtension(path)
+                .ToUpperInvariant();
+
+        var known =
+            new[]
+            {
+                "CN",
+                "EU",
+                "US",
+                "IN",
+                "JP",
+                "KR",
+                "GLOBAL"
+            };
+
+        return known.FirstOrDefault(
+                   x => upper.Contains(
+                       x,
+                       StringComparison.Ordinal))
+               ?? "—";
     }
 }

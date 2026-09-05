@@ -1,60 +1,52 @@
 <Window x:Class="TechFixStudio.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
-        Title="TechFix Studio"
-        Width="1400"
-        Height="900"
-        MinWidth="1100"
-        MinHeight="700"
+        Title="TechFix Studio 2.0"
+        Width="1500"
+        Height="940"
+        MinWidth="1180"
+        MinHeight="760"
         WindowStartupLocation="CenterScreen"
         Background="#070B12"
         Foreground="#DDE7F5">
 
     <Window.Resources>
 
-        <SolidColorBrush x:Key="PanelBrush" Color="#0D1420"/>
-        <SolidColorBrush x:Key="Panel2Brush" Color="#111B29"/>
-        <SolidColorBrush x:Key="BorderBrush" Color="#26384D"/>
-        <SolidColorBrush x:Key="AccentBrush" Color="#00D9FF"/>
-        <SolidColorBrush x:Key="Accent2Brush" Color="#7C4DFF"/>
-        <SolidColorBrush x:Key="TextBrush" Color="#DDE7F5"/>
-        <SolidColorBrush x:Key="MutedBrush" Color="#7F91A8"/>
+        <SolidColorBrush x:Key="Panel" Color="#0D1420"/>
+        <SolidColorBrush x:Key="Panel2" Color="#111B29"/>
+        <SolidColorBrush x:Key="Border" Color="#26384D"/>
+        <SolidColorBrush x:Key="Accent" Color="#00D9FF"/>
+        <SolidColorBrush x:Key="Muted" Color="#7F91A8"/>
 
         <Style TargetType="Button">
             <Setter Property="Background" Value="#111B29"/>
             <Setter Property="Foreground" Value="#DDE7F5"/>
             <Setter Property="BorderBrush" Value="#26384D"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Padding" Value="12,8"/>
             <Setter Property="Margin" Value="4"/>
-            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
 
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#17283B"/>
                     <Setter Property="BorderBrush" Value="#00D9FF"/>
-                </Trigger>
-
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#203A52"/>
+                    <Setter Property="Background" Value="#17283B"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="NavButton" TargetType="Button"
-                BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Height" Value="44"/>
-            <Setter Property="Margin" Value="6,3"/>
-            <Setter Property="FontSize" Value="14"/>
+        <Style x:Key="NavButton"
+               TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="43"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="5,3"/>
         </Style>
 
-        <Style x:Key="ActionButton" TargetType="Button"
-                BasedOn="{StaticResource {x:Type Button}}">
+        <Style x:Key="ActionButton"
+               TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="#10283A"/>
             <Setter Property="BorderBrush" Value="#00D9FF"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -64,9 +56,14 @@
             <Setter Property="Background" Value="#080E17"/>
             <Setter Property="Foreground" Value="#DDE7F5"/>
             <Setter Property="BorderBrush" Value="#26384D"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9"/>
+        </Style>
+
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#00D9FF"/>
+            <Setter Property="BorderBrush" Value="#26384D"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
             <Setter Property="Padding" Value="10"/>
-            <Setter Property="FontSize" Value="13"/>
         </Style>
 
         <Style TargetType="ListBox">
@@ -75,36 +72,17 @@
             <Setter Property="BorderBrush" Value="#26384D"/>
         </Style>
 
-        <Style TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="Margin" Value="2"/>
-
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#17364B"/>
-                    <Setter Property="BorderBrush" Value="#00D9FF"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style TargetType="GroupBox">
-            <Setter Property="Foreground" Value="#00D9FF"/>
-            <Setter Property="BorderBrush" Value="#26384D"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-            <Setter Property="Padding" Value="12"/>
-        </Style>
-
     </Window.Resources>
 
     <Grid>
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="70"/>
+            <RowDefinition Height="72"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="32"/>
         </Grid.RowDefinitions>
 
-        <!-- HEADER -->
+        <!-- TOP BAR -->
         <Border Grid.Row="0"
                 Background="#090F18"
                 BorderBrush="#26384D"
@@ -116,20 +94,19 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel VerticalAlignment="Center">
-
                     <TextBlock Text="TECHFIX STUDIO"
                                FontSize="25"
                                FontWeight="Bold"
                                Foreground="#00D9FF"/>
 
-                    <TextBlock Text="NATIVE WINDOWS REPAIR WORKSTATION"
+                    <TextBlock Text="NATIVE WINDOWS REPAIR WORKSTATION // 2.0"
                                FontSize="10"
                                Foreground="#7F91A8"
                                Margin="2,2,0,0"/>
-
                 </StackPanel>
 
                 <Border Grid.Column="1"
@@ -138,32 +115,36 @@
                         BorderThickness="1"
                         CornerRadius="5"
                         Padding="12,7"
-                        Margin="0,0,12,0">
+                        Margin="0,0,10,0">
 
                     <StackPanel Orientation="Horizontal">
-
                         <Ellipse Width="9"
                                  Height="9"
                                  Fill="#00D9FF"
                                  Margin="0,0,7,0"/>
 
-                        <TextBlock Text="ONLINE"
-                                   Foreground="#DDE7F5"/>
-
+                        <TextBlock Text="ONLINE"/>
                     </StackPanel>
 
                 </Border>
 
-                <Button Grid.Column="2"
+                <TextBlock Grid.Column="2"
+                           Text="{Binding Clock}"
+                           VerticalAlignment="Center"
+                           Foreground="#7F91A8"
+                           Margin="10,0,18,0"/>
+
+                <Button Grid.Column="3"
                         Content="⟳  SCAN DEVICES"
-                        Width="145"
+                        Width="150"
                         Style="{StaticResource ActionButton}"
-                        Click="Scan_Click"/>
+                        Click="Refresh_Click"/>
 
             </Grid>
+
         </Border>
 
-        <!-- BODY -->
+        <!-- MAIN -->
         <Grid Grid.Row="1">
 
             <Grid.ColumnDefinitions>
@@ -171,142 +152,217 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- SIDEBAR -->
+            <!-- LEFT NAV -->
             <Border Grid.Column="0"
                     Background="#090F18"
                     BorderBrush="#26384D"
                     BorderThickness="0,0,1,0">
 
-                <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
 
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                    <StackPanel Margin="8,14">
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock Text="WORKSTATION"
+                                   Foreground="#50657D"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Margin="12,0,0,8"/>
 
-                        <StackPanel Margin="8,14">
+                        <Button Content="⌂  控制台"
+                                Tag="Dashboard"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <TextBlock Text="WORKSTATION"
-                                       Foreground="#50657D"
-                                       FontSize="11"
-                                       FontWeight="Bold"
-                                       Margin="12,0,0,8"/>
+                        <Button Content="▣  Android 设备中心"
+                                Tag="Android"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="⌂  控制台"
-                                    Tag="Dashboard"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="⚡  刷机中心"
+                                Tag="Flash"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="▣  Android 设备中心"
-                                    Tag="Android"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="●  Root / Magisk"
+                                Tag="Root"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="⚡  刷机中心"
-                                    Tag="Flash"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="⌘  ADB 终端"
+                                Tag="Terminal"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="●  Root / Magisk"
-                                    Tag="Root"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="⚙  Fastboot"
+                                Tag="Fastboot"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="⌘  ADB 终端"
-                                    Tag="Terminal"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="▤  Windows 修复"
+                                Tag="Windows"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="⚙  Fastboot"
-                                    Tag="Fastboot"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="λ  Linux / SSH"
+                                Tag="Linux"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="▤  Windows 修复"
-                                    Tag="Windows"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="◎  资源中心"
+                                Tag="Resources"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="λ  Linux / SSH"
-                                    Tag="Linux"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                        <Button Content="◆  插件管理"
+                                Tag="Plugins"
+                                Style="{StaticResource NavButton}"
+                                Click="Navigation_Click"/>
 
-                            <Button Content="◎  资源中心"
-                                    Tag="Resources"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
+                    </StackPanel>
 
-                            <Button Content="◆  插件管理"
-                                    Tag="Plugins"
-                                    Style="{StaticResource NavButton}"
-                                    Click="Navigation_Click"/>
-
-                        </StackPanel>
-
-                    </ScrollViewer>
-
-                    <Border Grid.Row="1"
-                            BorderBrush="#26384D"
-                            BorderThickness="0,1,0,0"
-                            Padding="12">
-
-                        <StackPanel>
-
-                            <TextBlock Text="SYSTEM"
-                                       Foreground="#50657D"
-                                       FontSize="10"/>
-
-                            <TextBlock Text="{Binding StatusText}"
-                                       Foreground="#00D9FF"
-                                       FontSize="12"
-                                       Margin="0,5,0,0"/>
-
-                        </StackPanel>
-
-                    </Border>
-
-                </Grid>
+                </ScrollViewer>
 
             </Border>
 
-            <!-- MAIN CONTENT -->
+            <!-- CONTENT -->
             <Grid Grid.Column="1"
-                  Margin="18">
+                  Margin="22,18">
 
-                <!-- DASHBOARD -->
+                <!-- ================= DASHBOARD ================= -->
+
                 <Grid x:Name="DashboardPage">
 
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Margin="0,0,0,14">
+                    <StackPanel>
 
-                        <TextBlock Text="CONTROL CONSOLE"
-                                   FontSize="23"
-                                   FontWeight="Bold"
-                                   Foreground="#DDE7F5"/>
+                        <TextBlock Text="CONTROL CENTER"
+                                   FontSize="24"
+                                   FontWeight="Bold"/>
 
-                        <TextBlock Text="设备检测、维修任务与操作状态"
+                        <TextBlock Text="设备、工具链和实时状态总览"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,0"/>
+                                   Margin="0,4,0,18"/>
 
                     </StackPanel>
 
                     <Grid Grid.Row="1">
 
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <GroupBox Header="CONNECTED DEVICES"
-                                  Grid.Column="0"
-                                  Margin="0,0,10,0">
+                        <Border Grid.Column="0"
+                                Background="#0D1420"
+                                BorderBrush="#26384D"
+                                BorderThickness="1"
+                                Margin="0,0,8,12"
+                                Padding="14">
+
+                            <StackPanel>
+                                <TextBlock Text="DEVICES"
+                                           Foreground="#7F91A8"/>
+
+                                <TextBlock Text="{Binding Devices.Count}"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="#00D9FF"/>
+
+                                <TextBlock Text="ADB / Fastboot"
+                                           Foreground="#7F91A8"/>
+                            </StackPanel>
+
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Background="#0D1420"
+                                BorderBrush="#26384D"
+                                BorderThickness="1"
+                                Margin="8,0"
+                                Padding="14">
+
+                            <StackPanel>
+
+                                <TextBlock Text="CPU"
+                                           Foreground="#7F91A8"/>
+
+                                <TextBlock Text="{Binding Cpu, StringFormat={}{0:F0}%}"
+                                           FontSize="30"
+                                           FontWeight="Bold"/>
+
+                                <TextBlock Text="Android telemetry"
+                                           Foreground="#7F91A8"/>
+
+                            </StackPanel>
+
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                Background="#0D1420"
+                                BorderBrush="#26384D"
+                                BorderThickness="1"
+                                Margin="8,0"
+                                Padding="14">
+
+                            <StackPanel>
+
+                                <TextBlock Text="RAM"
+                                           Foreground="#7F91A8"/>
+
+                                <TextBlock Text="{Binding Ram, StringFormat={}{0:F0}%}"
+                                           FontSize="30"
+                                           FontWeight="Bold"/>
+
+                                <TextBlock Text="Android telemetry"
+                                           Foreground="#7F91A8"/>
+
+                            </StackPanel>
+
+                        </Border>
+
+                        <Border Grid.Column="3"
+                                Background="#0D1420"
+                                BorderBrush="#26384D"
+                                BorderThickness="1"
+                                Margin="8,0,0,12"
+                                Padding="14">
+
+                            <StackPanel>
+
+                                <TextBlock Text="BATTERY"
+                                           Foreground="#7F91A8"/>
+
+                                <TextBlock Text="{Binding Battery, StringFormat={}{0:F0}%}"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="#00D9FF"/>
+
+                                <TextBlock Text="{Binding BatteryTemp, StringFormat=Temp {0:F1} °C}"
+                                           Foreground="#7F91A8"/>
+
+                            </StackPanel>
+
+                        </Border>
+
+                    </Grid>
+
+                    <Grid Grid.Row="2"
+                          Margin="0,8,0,0">
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.25*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <GroupBox Header="DEVICE LIST"
+                                  Grid.Column="0">
 
                             <Grid>
 
@@ -319,10 +375,10 @@
                                          SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">
 
                                     <ListBox.ItemTemplate>
+
                                         <DataTemplate>
 
-                                            <Border Padding="10"
-                                                    Margin="2"
+                                            <Border Padding="8"
                                                     BorderBrush="#26384D"
                                                     BorderThickness="0,0,0,1">
 
@@ -335,71 +391,79 @@
 
                                                     <StackPanel>
 
-                                                        <TextBlock Text="{Binding Serial}"
-                                                                   FontWeight="Bold"
-                                                                   FontSize="14"/>
+                                                        <TextBlock Text="{Binding Model}"
+                                                                   FontWeight="Bold"/>
 
-                                                        <TextBlock Text="{Binding Transport}"
-                                                                   Foreground="#00D9FF"
-                                                                   Margin="0,3,0,0"/>
+                                                        <TextBlock Text="{Binding Serial}"
+                                                                   Foreground="#00D9FF"/>
+
+                                                        <TextBlock Text="{Binding Manufacturer}"
+                                                                   Foreground="#7F91A8"/>
 
                                                     </StackPanel>
 
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="CONNECTED"
-                                                               Foreground="#68E0A0"
-                                                               VerticalAlignment="Center"/>
+                                                    <StackPanel Grid.Column="1"
+                                                                HorizontalAlignment="Right">
+
+                                                        <TextBlock Text="{Binding Transport}"/>
+
+                                                        <TextBlock Text="{Binding State}"
+                                                                   Foreground="#7F91A8"/>
+
+                                                    </StackPanel>
 
                                                 </Grid>
 
                                             </Border>
 
                                         </DataTemplate>
+
                                     </ListBox.ItemTemplate>
 
                                 </ListBox>
-
-                                <Button Grid.Row="1"
-                                        Content="⟳  重新检测设备"
-                                        Style="{StaticResource ActionButton}"
-                                        HorizontalAlignment="Right"
-                                        Width="150"
-                                        Click="Scan_Click"/>
 
                             </Grid>
 
                         </GroupBox>
 
-                        <GroupBox Grid.Column="1"
-                                  Header="DEVICE INSPECTOR">
+                        <GroupBox Header="SELECTED DEVICE"
+                                  Grid.Column="1"
+                                  Margin="10,0,0,12">
 
                             <StackPanel>
 
-                                <TextBlock Text="Selected Device"
-                                           Foreground="#7F91A8"/>
-
                                 <TextBlock Text="{Binding SelectedDevice.Serial, TargetNullValue=No device}"
-                                           FontSize="17"
+                                           FontSize="20"
                                            FontWeight="Bold"
-                                           Margin="0,6,0,15"/>
+                                           Foreground="#00D9FF"/>
 
-                                <TextBlock Text="Transport"
-                                           Foreground="#7F91A8"/>
-
-                                <TextBlock Text="{Binding SelectedDevice.Transport, TargetNullValue=Unknown}"
-                                           Foreground="#00D9FF"
+                                <TextBlock Text="{Binding SelectedDevice.Model, TargetNullValue=—}"
+                                           FontSize="16"
                                            Margin="0,5,0,15"/>
 
-                                <TextBlock Text="Status"
+                                <TextBlock Text="{Binding SelectedDevice.Manufacturer, TargetNullValue=—}"/>
+
+                                <TextBlock Text="{Binding SelectedDevice.Transport, TargetNullValue=—}"
                                            Foreground="#7F91A8"/>
 
-                                <TextBlock Text="{Binding StatusText}"
-                                           Margin="0,5,0,15"/>
+                                <Separator Margin="0,12"/>
 
-                                <Button Content="打开 Android 中心"
-                                        Tag="Android"
-                                        Style="{StaticResource ActionButton}"
-                                        Click="Navigation_Click"/>
+                                <WrapPanel>
+
+                                    <Button Content="Android Diagnose"
+                                            Click="DiagnoseAndroid_Click"
+                                            Style="{StaticResource ActionButton}"/>
+
+                                    <Button Content="Logcat"
+                                            Click="Logcat_Click"/>
+
+                                    <Button Content="Bootloader"
+                                            Click="RebootBootloader_Click"/>
+
+                                    <Button Content="Recovery"
+                                            Click="RebootRecovery_Click"/>
+
+                                </WrapPanel>
 
                             </StackPanel>
 
@@ -409,67 +473,144 @@
 
                 </Grid>
 
-                <!-- ANDROID -->
+                <!-- ================= ANDROID ================= -->
+
                 <Grid x:Name="AndroidPage"
                       Visibility="Collapsed">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
                     <StackPanel>
 
                         <TextBlock Text="ANDROID DEVICE CENTER"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="ADB / Fastboot 设备检测"
+                        <TextBlock Text="ADB Android 设备诊断、Logcat 与设备控制"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,15"/>
-
-                        <GroupBox Header="DEVICES">
-
-                            <StackPanel>
-
-                                <ListBox ItemsSource="{Binding Devices}"
-                                         SelectedItem="{Binding SelectedDevice, Mode=TwoWay}"
-                                         Height="350">
-
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-
-                                            <StackPanel Margin="5">
-
-                                                <TextBlock Text="{Binding Serial}"
-                                                           FontSize="15"
-                                                           FontWeight="Bold"/>
-
-                                                <TextBlock Text="{Binding Transport}"
-                                                           Foreground="#00D9FF"
-                                                           Margin="0,3,0,0"/>
-
-                                            </StackPanel>
-
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-
-                                </ListBox>
-
-                                <Button Content="⟳  SCAN ADB / FASTBOOT"
-                                        Style="{StaticResource ActionButton}"
-                                        Width="220"
-                                        HorizontalAlignment="Left"
-                                        Click="Scan_Click"/>
-
-                            </StackPanel>
-
-                        </GroupBox>
+                                   Margin="0,4,0,14"/>
 
                     </StackPanel>
 
+                    <WrapPanel Grid.Row="1">
+
+                        <Button Content="⟳ Scan Devices"
+                                Click="Refresh_Click"
+                                Style="{StaticResource ActionButton}"/>
+
+                        <Button Content="Full Diagnostics"
+                                Click="DiagnoseAndroid_Click"
+                                Style="{StaticResource ActionButton}"/>
+
+                        <Button Content="Load Logcat"
+                                Click="Logcat_Click"/>
+
+                        <Button Content="Reboot Bootloader"
+                                Click="RebootBootloader_Click"/>
+
+                        <Button Content="Reboot Recovery"
+                                Click="RebootRecovery_Click"/>
+
+                    </WrapPanel>
+
+                    <Grid Grid.Row="2"
+                          Margin="0,10,0,0">
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.15*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <GroupBox Header="ANDROID DIAGNOSTICS">
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                                <StackPanel>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Manufacturer, TargetNullValue=—}"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="#00D9FF"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Model, TargetNullValue=—}"
+                                               FontSize="16"
+                                               Margin="0,3,0,12"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Device, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Product, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.AndroidVersion, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Sdk, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.SecurityPatch, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.BuildId, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Fingerprint, TargetNullValue=—}"
+                                               TextWrapping="Wrap"/>
+
+                                    <Separator Margin="0,10"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Abi, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Kernel, TargetNullValue=—}"
+                                               TextWrapping="Wrap"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Slot, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.VerifiedBootState, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.VbmetaDeviceState, TargetNullValue=—}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.AvbVersion, TargetNullValue=—}"/>
+
+                                    <Separator Margin="0,10"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Battery.Level, StringFormat=Battery: {0}%}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Battery.Temperature, StringFormat=Temperature: {0:F1} °C}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Memory.UsedPercent, StringFormat=RAM: {0:F1}%}"/>
+
+                                    <TextBlock Text="{Binding AndroidDiagnostics.Storage, TargetNullValue=—}"/>
+
+                                </StackPanel>
+
+                            </ScrollViewer>
+
+                        </GroupBox>
+
+                        <GroupBox Grid.Column="1"
+                                  Header="LOGCAT"
+                                  Margin="10,0,0,12">
+
+                            <TextBox Text="{Binding Logcat, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="NoWrap"
+                                     FontFamily="Consolas"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"/>
+
+                        </GroupBox>
+
+                    </Grid>
+
                 </Grid>
 
-                <!-- FLASH -->
+                <!-- ================= FLASH ================= -->
+
                 <Grid x:Name="FlashPage"
                       Visibility="Collapsed">
 
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
@@ -477,146 +618,332 @@
                     <StackPanel>
 
                         <TextBlock Text="FLASH CENTER"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="Fastboot 镜像刷写任务队列"
+                        <TextBlock Text="Factory ROM 分析 → Flash Plan → SHA 校验 → 安全刷写队列"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,15"/>
+                                   Margin="0,4,0,14"/>
 
                     </StackPanel>
 
-                    <Grid Grid.Row="1">
+                    <WrapPanel Grid.Row="1">
+
+                        <Button Content="Load Factory / ROM"
+                                Click="BrowseFactory_Click"
+                                Style="{StaticResource ActionButton}"/>
+
+                        <Button Content="Build Flash Plan"
+                                Click="BuildFlashPlan_Click"
+                                Style="{StaticResource ActionButton}"/>
+
+                        <Button Content="Browse Image"
+                                Click="BrowseFlash_Click"/>
+
+                        <Button Content="Add Task"
+                                Click="AddTask_Click"/>
+
+                        <Button Content="Run Queue"
+                                Click="RunQueue_Click"
+                                Style="{StaticResource ActionButton}"/>
+
+                        <Button Content="Cancel"
+                                Click="CancelQueue_Click"/>
+
+                    </WrapPanel>
+
+                    <Grid Grid.Row="2"
+                          Margin="0,10,0,0">
 
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="1.1*"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                            <Button Content="＋  添加刷机任务"
-                                    Width="160"
-                                    Style="{StaticResource ActionButton}"
-                                    Click="AddFlash_Click"/>
+                        <GroupBox Header="FACTORY / ROM ANALYSIS"
+                                  Grid.Row="0"
+                                  Grid.Column="0"
+                                  Margin="0,0,8,10">
 
-                            <Button Content="⟳  刷新队列"
-                                    Width="130"
-                                    Click="LoadFlash_Click"/>
+                            <TextBox Text="{Binding FactoryText, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     FontFamily="Consolas"
+                                     VerticalScrollBarVisibility="Auto"/>
 
-                            <Button Content="▶  执行选中任务"
-                                    Width="160"
-                                    Click="ExecuteFlash_Click"/>
+                        </GroupBox>
 
-                        </StackPanel>
+                        <GroupBox Header="FLASH PLAN"
+                                  Grid.Row="0"
+                                  Grid.Column="1"
+                                  Margin="8,0,0,10">
 
-                        <ListBox Grid.Row="1"
-                                 x:Name="FlashTaskList"
-                                 ItemsSource="{Binding FlashTasks}"
-                                 Margin="0,12,0,0">
+                            <TextBox Text="{Binding PlanText, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     FontFamily="Consolas"
+                                     VerticalScrollBarVisibility="Auto"/>
 
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
+                        </GroupBox>
 
-                                    <Border BorderBrush="#26384D"
-                                            BorderThickness="1"
-                                            Padding="12"
-                                            Margin="3">
+                        <GroupBox Header="MANUAL IMAGE TASK"
+                                  Grid.Row="1"
+                                  Grid.Column="0"
+                                  Margin="0,0,8,0">
 
-                                        <Grid>
+                            <Grid>
 
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                                            <StackPanel>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                                <TextBlock Text="{Binding Partition}"
-                                                           FontSize="16"
-                                                           FontWeight="Bold"/>
+                                <TextBlock Text="Image"
+                                           VerticalAlignment="Center"/>
 
-                                                <TextBlock Text="{Binding ImagePath}"
-                                                           Foreground="#7F91A8"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           Margin="0,4,0,0"/>
+                                <Grid Grid.Column="1">
 
-                                                <TextBlock Text="{Binding Serial}"
-                                                           Foreground="#00D9FF"
-                                                           Margin="0,4,0,0"/>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                                <TextBlock Text="{Binding Message}"
-                                                           Margin="0,4,0,0"/>
+                                    <TextBox Text="{Binding FlashPath, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                            </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="Browse"
+                                            Width="90"
+                                            Click="BrowseFlash_Click"/>
 
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding State}"
-                                                       Foreground="#00D9FF"
-                                                       VerticalAlignment="Center"
-                                                       Margin="15,0,0,0"/>
+                                </Grid>
 
-                                        </Grid>
+                                <TextBlock Grid.Row="1"
+                                           Text="Partition"
+                                           VerticalAlignment="Center"/>
 
-                                    </Border>
+                                <ComboBox Grid.Row="1"
+                                          Grid.Column="1"
+               ItemsSource="{Binding Partitions}"
+                                          SelectedItem="{Binding FlashPartition, Mode=TwoWay}"
+                                          Background="#080E17"
+                                          Foreground="#DDE7F5"/>
 
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
+                                <TextBlock Grid.Row="2"
+                                           Text="SHA-256"
+                                           VerticalAlignment="Center"/>
 
-                        </ListBox>
+                                <TextBox Grid.Row="2"
+                                         Grid.Column="1"
+                                         Text="{Binding FlashHash, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                <TextBlock Grid.Row="3"
+                                           Text="Status"
+                                           VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="1"
+                                           Text="{Binding FlashStatus}"
+                                           Foreground="#00D9FF"
+                                           TextWrapping="Wrap"/>
+
+                            </Grid>
+
+                        </GroupBox>
+
+                        <GroupBox Header="FLASH QUEUE"
+                                  Grid.Row="1"
+                                  Grid.Column="1"
+                                  Margin="8,0,0,0">
+
+                            <ListBox ItemsSource="{Binding FlashQueue}">
+
+                                <ListBox.ItemTemplate>
+
+                                    <DataTemplate>
+
+                                        <Border BorderBrush="#26384D"
+                                                BorderThickness="1"
+                                                Padding="8"
+                                                Margin="2">
+
+                                            <Grid>
+
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="180"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel>
+
+                                                    <TextBlock Text="{Binding Partition}"
+                                                               FontWeight="Bold"
+                                                               Foreground="#00D9FF"/>
+
+                                                    <TextBlock Text="{Binding ImagePath}"
+                                                               TextTrimming="CharacterEllipsis"/>
+
+                                                    <TextBlock Text="{Binding Serial}"
+                                                               Foreground="#7F91A8"/>
+
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1">
+
+                                                    <TextBlock Text="{Binding State}"/>
+
+                                                    <ProgressBar Value="{Binding Progress}"
+                                                                 Height="8"
+                                                                 Margin="0,5"/>
+
+                                                    <TextBlock Text="{Binding Message}"
+                                                               Foreground="#7F91A8"
+                                                               TextTrimming="CharacterEllipsis"/>
+
+                                                </StackPanel>
+
+                                                <Button Grid.Column="2"
+                                                        Content="Remove"
+                                                        Click="RemoveTask_Click"
+                                                        VerticalAlignment="Center"/>
+
+                                            </Grid>
+
+                                        </Border>
+
+                                    </DataTemplate>
+
+                                </ListBox.ItemTemplate>
+
+                            </ListBox>
+
+                        </GroupBox>
 
                     </Grid>
 
                 </Grid>
 
-                <!-- ROOT -->
+                <!-- ================= ROOT ================= -->
+
                 <Grid x:Name="RootPage"
                       Visibility="Collapsed">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
                     <StackPanel>
 
                         <TextBlock Text="ROOT / MAGISK"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="Root 状态检测与 Magisk 工作区"
+                        <TextBlock Text="Root / Magisk 状态检测"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,20"/>
+                                   Margin="0,4,0,14"/>
 
-                        <GroupBox Header="CURRENT DEVICE">
+                    </StackPanel>
+
+                    <WrapPanel Grid.Row="1">
+
+                        <Button Content="⟳ Inspect Root / Magisk"
+                                Width="190"
+                                Style="{StaticResource ActionButton}"
+                                Click="RootMagisk_Click"/>
+
+                        <Button Content="⟳ Scan Device"
+                                Width="130"
+                                Click="Refresh_Click"/>
+
+                    </WrapPanel>
+
+                    <Grid Grid.Row="2"
+                          Margin="0,10,0,0">
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1.2*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <GroupBox Header="MAGISK STATUS">
+
+                            <TextBox Text="{Binding MagiskText, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     FontFamily="Consolas"
+                                     VerticalScrollBarVisibility="Auto"/>
+
+                        </GroupBox>
+
+                        <GroupBox Grid.Column="1"
+                                  Header="DEVICE">
 
                             <StackPanel>
 
-                                <TextBlock Text="{Binding SelectedDevice.Serial, TargetNullValue=未选择设备}"
+                                <TextBlock Text="{Binding SelectedDevice.Serial, TargetNullValue=No device}"
                                            FontSize="18"
-                                           FontWeight="Bold"/>
+                                           FontWeight="Bold"
+                                           Foreground="#00D9FF"/>
 
-                                <TextBlock Text="{Binding SelectedDevice.Transport, TargetNullValue=Unknown}"
-                                           Foreground="#00D9FF"
-                                           Margin="0,7,0,20"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,8,0,0">
+                                    <TextBlock Text="Root: "/>
+                                    <TextBlock Text="{Binding MagiskInfo.RootDetected, TargetNullValue=—}"/>
+                                </StackPanel>
 
-                                <TextBlock Text="Root 状态由 Android 设备扫描结果提供。"
-                                           Foreground="#7F91A8"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Magisk: "/>
+                                    <TextBlock Text="{Binding MagiskInfo.MagiskDetected, TargetNullValue=—}"/>
+                                </StackPanel>
 
-                                <TextBlock Text="Magisk 镜像修补与刷写必须在确认目标镜像后执行。"
-                                           Foreground="#7F91A8"
-                                           Margin="0,5,0,20"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Version: "/>
+                                    <TextBlock Text="{Binding MagiskInfo.Version, TargetNullValue=—}"/>
+                                </StackPanel>
 
-                                <Button Content="⟳  重新检测 Root / 设备"
-                                        Style="{StaticResource ActionButton}"
-                                        Width="210"
-                                        HorizontalAlignment="Left"
-                                        Click="Scan_Click"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Zygisk: "/>
+                                    <TextBlock Text="{Binding MagiskInfo.Zygisk, TargetNullValue=—}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="DenyList: "/>
+                                    <TextBlock Text="{Binding MagiskInfo.DenyList, TargetNullValue=—}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Install: "/>
+                                    <TextBlock Text="{Binding MagiskInfo.InstallPath, TargetNullValue=—}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
 
                             </StackPanel>
 
                         </GroupBox>
 
-                    </StackPanel>
+                    </Grid>
 
                 </Grid>
 
-                <!-- TERMINAL -->
+                <!-- ================= TERMINAL ================= -->
+
                 <Grid x:Name="TerminalPage"
                       Visibility="Collapsed">
 
@@ -629,236 +956,277 @@
                     <StackPanel>
 
                         <TextBlock Text="ADB TERMINAL"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="安全 ADB 命令执行器"
+                        <TextBlock Text="受控 ADB 命令执行器；高风险命令进入专用工作流"
                                    Foreground="#7F91A8"
                                    Margin="0,4,0,12"/>
 
                     </StackPanel>
 
                     <TextBox Grid.Row="1"
-                             Text="{Binding TerminalOutput, Mode=OneWay}"
+                             Text="{Binding Terminal, Mode=OneWay}"
                              IsReadOnly="True"
-                             TextWrapping="Wrap"
                              AcceptsReturn="True"
-                             VerticalScrollBarVisibility="Auto"
+                             TextWrapping="NoWrap"
                              FontFamily="Consolas"
-                             FontSize="13"/>
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"/>
 
                     <Grid Grid.Row="2"
-                          Margin="0,12,0,0">
+                          Margin="0,10,0,0">
 
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBox Text="{Binding TerminalInput, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
                                  Height="42"
                                  VerticalContentAlignment="Center"/>
 
                         <Button Grid.Column="1"
-                                Content="▶  RUN"
-                                Width="110"
+                                Content="▶ RUN"
+                                Width="120"
                                 Height="42"
                                 Style="{StaticResource ActionButton}"
-                                Click="RunTerminal_Click"/>
+                                Click="Execute_Click"/>
 
                     </Grid>
 
                 </Grid>
 
-                <!-- FASTBOOT -->
+                <!-- ================= FASTBOOT ================= -->
+                
                 <Grid x:Name="FastbootPage"
                       Visibility="Collapsed">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
                     <StackPanel>
 
                         <TextBlock Text="FASTBOOT"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="Fastboot 设备检测与刷写入口"
+                        <TextBlock Text="Fastboot getvar / device inspection"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,20"/>
+                                   Margin="0,4,0,14"/>
 
-                        <GroupBox Header="FASTBOOT DEVICES">
+                    </StackPanel>
+
+                    <Grid Grid.Row="1">
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1.25*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <GroupBox Header="DEVICES">
 
                             <StackPanel>
 
                                 <ListBox ItemsSource="{Binding Devices}"
                                          SelectedItem="{Binding SelectedDevice, Mode=TwoWay}"
-                                         Height="300">
+                                         Height="350">
 
                                     <ListBox.ItemTemplate>
+
                                         <DataTemplate>
 
-                                            <StackPanel Margin="5">
+                                            <StackPanel Margin="4">
 
                                                 <TextBlock Text="{Binding Serial}"
-                                                           FontWeight="Bold"
-                                                           FontSize="16"/>
-
-                                                <TextBlock Text="{Binding Transport}"
                                                            Foreground="#00D9FF"
-                                                           Margin="0,3,0,0"/>
+                                                           FontWeight="Bold"/>
+
+                                                <TextBlock Text="{Binding Transport}"/>
+
+                                                <TextBlock Text="{Binding State}"
+                                                           Foreground="#7F91A8"/>
 
                                             </StackPanel>
 
                                         </DataTemplate>
+
                                     </ListBox.ItemTemplate>
 
                                 </ListBox>
 
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,10,0,0">
-
-                                    <Button Content="⟳  检测"
-                                            Width="120"
-                                            Style="{StaticResource ActionButton}"
-                                            Click="Scan_Click"/>
-
-                                    <Button Content="⚡  添加刷机任务"
-                                            Width="160"
-                                            Click="AddFlash_Click"/>
-
-                                </StackPanel>
+                                <Button Content="⚙ Inspect Fastboot"
+                                        Style="{StaticResource ActionButton}"
+                                        Click="Fastboot_Click"/>
 
                             </StackPanel>
 
                         </GroupBox>
 
-                    </StackPanel>
+                        <GroupBox Grid.Column="1"
+                                  Header="RAW GETVAR OUTPUT"
+                                  Margin="10,0,0,12">
+
+                            <TextBox Text="{Binding Terminal, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="NoWrap"
+                                     FontFamily="Consolas"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"/>
+
+                        </GroupBox>
+
+                    </Grid>
 
                 </Grid>
 
-                <!-- WINDOWS -->
+                <!-- ================= WINDOWS ================= -->
+
                 <Grid x:Name="WindowsPage"
                       Visibility="Collapsed">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
                     <StackPanel>
 
                         <TextBlock Text="WINDOWS REPAIR"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="SFC / DISM 系统修复工具"
+                        <TextBlock Text="SFC / DISM 系统修复工作区"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,20"/>
-
-                        <GroupBox Header="SYSTEM REPAIR">
-
-                            <StackPanel>
-
-                                <TextBlock Text="SFC"
-                                           FontSize="16"
-                                           FontWeight="Bold"/>
-
-                                <TextBlock Text="扫描并修复受保护的 Windows 系统文件。"
-                                           Foreground="#7F91A8"
-                                           Margin="0,4,0,8"/>
-
-                                <Button Content="▶  运行 SFC"
-                                        Width="150"
-                                        Style="{StaticResource ActionButton}"
-                                        Click="Sfc_Click"/>
-
-                                <Separator Margin="0,18"/>
-
-                                <TextBlock Text="DISM RestoreHealth"
-                                           FontSize="16"
-                                           FontWeight="Bold"/>
-
-                                <TextBlock Text="修复 Windows Component Store。"
-                                           Foreground="#7F91A8"
-                                           Margin="0,4,0,8"/>
-
-                                <Button Content="▶  运行 DISM"
-                                        Width="150"
-                                        Style="{StaticResource ActionButton}"
-                                        Click="Dism_Click"/>
-
-                            </StackPanel>
-
-                        </GroupBox>
+                                   Margin="0,4,0,14"/>
 
                     </StackPanel>
 
+                    <WrapPanel Grid.Row="1">
+
+                        <Button Content="SFC /scannow"
+                                Width="150"
+                                Style="{StaticResource ActionButton}"
+                                Click="Sfc_Click"/>
+
+                        <Button Content="DISM CheckHealth"
+                                Width="170"
+                                Click="DismCheck_Click"/>
+
+                        <Button Content="DISM RestoreHealth"
+                                Width="180"
+                                Click="Dism_Click"/>
+
+                    </WrapPanel>
+
+                    <TextBox Grid.Row="2"
+                             Text="{Binding Terminal, Mode=OneWay}"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             FontFamily="Consolas"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             Margin="0,10,0,0"/>
+
                 </Grid>
 
-                <!-- LINUX -->
+                <!-- ================= SSH ================= -->
+
                 <Grid x:Name="LinuxPage"
                       Visibility="Collapsed">
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
                     <StackPanel>
 
                         <TextBlock Text="LINUX / SSH"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="Linux / SSH 工作区"
+                        <TextBlock Text="受控 SSH 命令执行器"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,20"/>
-
-                        <GroupBox Header="SSH">
-
-                            <StackPanel>
-
-                                <TextBlock Text="当前版本的 SSH 功能通过 ViewModel 的安全执行接口提供。"
-                                           Foreground="#7F91A8"
-                                           TextWrapping="Wrap"/>
-
-                                <TextBlock Text="如需完整 SSH / SFTP 浏览器，需要继续扩展 SshService 和 ViewModel 接口。"
-                                           Foreground="#7F91A8"
-                                           TextWrapping="Wrap"
-                                           Margin="0,8,0,20"/>
-
-                                <Button Content="打开终端工作区"
-                                        Tag="Terminal"
-                                        Style="{StaticResource ActionButton}"
-                                        Width="180"
-                                        Click="Navigation_Click"/>
-
-                            </StackPanel>
-
-                        </GroupBox>
+                                   Margin="0,4,0,14"/>
 
                     </StackPanel>
 
+                    <Grid Grid.Row="1">
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Text="{Binding SshHost, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Host"/>
+
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding SshUser, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="User"/>
+
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding SshCommand, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Command"/>
+
+                        <Button Grid.Column="3"
+                                Content="▶ SSH"
+                                Width="110"
+                                Style="{StaticResource ActionButton}"
+                                Click="Ssh_Click"/>
+
+                    </Grid>
+
+                    <TextBox Grid.Row="2"
+                             Text="{Binding SshOutput, Mode=OneWay}"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             FontFamily="Consolas"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             Margin="0,10,0,0"/>
+
                 </Grid>
 
-                <!-- RESOURCES -->
+                <!-- ================= RESOURCES ================= -->
+
                 <Grid x:Name="ResourcesPage"
                       Visibility="Collapsed">
 
                     <StackPanel>
 
-                        <TextBlock Text="RESOURCE CENTER"
-                                   FontSize="23"
+                        <TextBlock Text="RESOURCE HUB"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="ROM / 工具 / 官方资源工作区"
+                        <TextBlock Text="ROM / Windows / Linux 资源元数据工作区"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,20"/>
+                                   Margin="0,4,0,18"/>
 
-                        <GroupBox Header="RESOURCE HUB">
+                        <GroupBox Header="2.0 RESOURCE POLICY">
 
                             <StackPanel>
 
-                                <TextBlock Text="资源中心基础框架已经预留。"
-                                           FontSize="16"
-                                           FontWeight="Bold"/>
-
-                                <TextBlock Text="后续可以接入官方 ROM、Platform-Tools、OEM 解锁说明、Windows 镜像和 Linux 资源索引。"
-                                           Foreground="#7F91A8"
-                                           TextWrapping="Wrap"
-                                           Margin="0,8,0,15"/>
-
-                                <TextBlock Text="建议资源记录保存：名称、版本、官方 URL、SHA-256、适用设备。"
-                                           Foreground="#7F91A8"
+                                <TextBlock Text="官方链接、版本、区域、Codename、SHA-256 等元数据应由资源目录管理."
                                            TextWrapping="Wrap"/>
+
+                                <TextBlock Text="ROM 下载内容不内置到程序；刷写前必须分析目标包并核验哈希."
+                                           Foreground="#7F91A8"
+                                           Margin="0,7,0,0"/>
+
+                                <TextBlock Text="Factory flash script 仅分析，不自动执行."
+                                           Foreground="#7F91A8"
+                                           Margin="0,4,0,0"/>
 
                             </StackPanel>
 
@@ -868,35 +1236,34 @@
 
                 </Grid>
 
-                <!-- PLUGINS -->
+                <!-- ================= PLUGINS ================= -->
+
                 <Grid x:Name="PluginsPage"
                       Visibility="Collapsed">
 
                     <StackPanel>
 
                         <TextBlock Text="PLUGIN MANAGER"
-                                   FontSize="23"
+                                   FontSize="24"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="模块化插件工作区"
+                        <TextBlock Text="模块化扩展入口"
                                    Foreground="#7F91A8"
-                                   Margin="0,4,0,20"/>
+                                   Margin="0,4,0,18"/>
 
-                        <GroupBox Header="PLUGINS">
+                        <GroupBox Header="MODULE STATUS">
 
                             <StackPanel>
 
-                                <TextBlock Text="插件系统基础页面"
-                                           FontSize="16"
-                                           FontWeight="Bold"/>
+                                <TextBlock Text="Core"/>
 
-                                <TextBlock Text="后续可以继续接入模块扫描、启用/禁用、版本和安全签名检查。"
+                                <TextBlock Text="Android / Fastboot / Flash / Root / Windows / SSH"
+                                           Foreground="#00D9FF"/>
+
+                                <TextBlock Text="当前版本保留服务层独立化设计，可继续扩展模块发现、启用、禁用和版本校验."
                                            Foreground="#7F91A8"
-                                           TextWrapping="Wrap"
-                                           Margin="0,8,0,15"/>
-
-                                <TextBlock Text="当前核心维修功能不依赖第三方插件。"
-                                           Foreground="#7F91A8"/>
+                                           Margin="0,8,0,0"
+                                           TextWrapping="Wrap"/>
 
                             </StackPanel>
 
@@ -911,27 +1278,20 @@
         </Grid>
 
         <!-- STATUS BAR -->
+
         <Border Grid.Row="2"
                 Background="#090F18"
                 BorderBrush="#26384D"
-                BorderThickness="0,1,0,0">
+                BorderThickness="0,1,0,0"
+                Padding="12,0">
 
-            <Grid Margin="15,0">
-
-                <TextBlock Text="Native Windows · Real Process Execution · Audit Log READY"
-                           Foreground="#50657D"
-                           VerticalAlignment="Center"/>
-
-                <TextBlock Text="{Binding StatusText}"
-                           Foreground="#00D9FF"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"/>
-
-            </Grid>
+            <TextBlock Text="{Binding Status}"
+                       Foreground="#7F91A8"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
 
         </Border>
 
     </Grid>
 
 </Window>
-

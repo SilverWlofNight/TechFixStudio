@@ -1,65 +1,75 @@
-using System.IO;
 using TechFixStudio.Models;
 
 namespace TechFixStudio.Services;
 
 public sealed class RiskEngine
 {
-    private static readonly string[] CriticalPatterns =
-    [
-        "fastboot flash",
-        "fastboot erase",
-        "fastboot format",
-        "fastboot -w",
-        "diskpart",
-        "format ",
+    private static readonly string[] CriticalKeywords =
+    {
+        "erase",
+        "format",
+        "userdata",
+        "factory-reset",
+        "partition",
+        "gpt",
+        "raw",
         "dd if=",
-        "rm -rf",
-        "del /s"
-    ];
+        "mkfs",
+        "wipe"
+    };
 
-    private static readonly string[] HighPatterns =
-    [
-        "adb reboot",
-        "adb shell",
-        "fastboot reboot",
-        "bootrec",
-        "bcdedit"
-    ];
+    private static readonly string[] HighKeywords =
+    {
+        "flash",
+        "fastboot",
+        "reboot bootloader",
+        "reboot recovery",
+        "bootloader",
+        "unlock",
+        "lock",
+        "vbmeta",
+        "super",
+        "system",
+        "vendor"
+    };
 
-    private static readonly string[] MediumPatterns =
-    [
-        "adb install",
-        "adb push",
-        "adb pull",
+    private static readonly string[] MediumKeywords =
+    {
+        "push",
+        "pull",
+        "install",
+        "uninstall",
+        "shell",
+        "dism",
         "sfc",
-        "dism"
-    ];
+        "ssh"
+    };
 
-    public RiskLevel Assess(string command)
+    public RiskLevel Assess(
+        string command)
     {
         if (string.IsNullOrWhiteSpace(command))
         {
             return RiskLevel.Low;
         }
 
-        var normalized =
-            command.Trim().ToLowerInvariant();
+        var text =
+            command.ToLowerInvariant();
 
-        if (CriticalPatterns.Any(
-                normalized.Contains))
+        if (CriticalKeywords.Any(
+                text.Contains))
         {
             return RiskLevel.Critical;
         }
 
-        if (HighPatterns.Any(
-                normalized.Contains))
+        if (HighKeywords.Any(
+                text.Contains))
         {
             return RiskLevel.High;
         }
 
-        if (MediumPatterns.Any(
-                normalized.Contains))
+        if (MediumKeywords.Any(
+                text.Contains))
         {
             return RiskLevel.Medium;
         }
@@ -67,12 +77,10 @@ public sealed class RiskEngine
         return RiskLevel.Low;
     }
 
-    public bool IsDestructive(string command)
+    public bool IsBlocked(
+        string command)
     {
-        var risk = Assess(command);
-
-        return risk is
-            RiskLevel.High or
-            RiskLevel.Critical;
+        return Assess(command) >=
+               RiskLevel.High;
     }
 }

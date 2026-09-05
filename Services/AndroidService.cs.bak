@@ -1,0 +1,253 @@
+using TechFixStudio.Models;
+
+namespace TechFixStudio.Services;
+
+public sealed class AndroidService
+{
+    readonly ToolLocator _t = new();
+    readonly ProcessRunner _r = new();
+
+    public async Task<List<DeviceInfo>> ScanAsync()
+    {
+        var list = new List<DeviceInfo>();
+
+        if (_t.Adb is null)
+            return list;
+
+        var r = await _r.RunAsync(
+            _t.Adb,
+            ["devices", "-l"],
+            TimeSpan.FromSeconds(15));
+
+        foreach (var line in r.StdOut.Split('\n'))
+        {
+            var p = line.Trim()
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            if (p.Length < 2)
+                continue;
+
+            if (p[0].Equals("List", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!p[1].Equals("device", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var model =
+                p.FirstOrDefault(x => x.StartsWith("model:",
+                    StringComparison.OrdinalIgnoreCase))
+                ?.Split(':')
+                .Last()
+                .Replace("_", " ")
+                ?? "Android device";
+
+            var device = new DeviceInfo(
+                p[0],
+                Transport.Adb,
+                p[1],
+                model,
+                "—",
+                "—",
+                "—",
+                "—",
+                "—",
+                false,
+                false);
+
+            list.Add(await EnrichAsync(device));
+        }
+
+        return list;
+    }
+
+    public async Task<DeviceInfo> EnrichAsync(DeviceInfo d)
+    {
+        if (_t.Adb is null)
+            return d;
+
+        try
+        {
+            var model = await Prop(d.Serial, "ro.product.model");
+            var manufacturer =
+                await Prop(d.Serial, "ro.product.manufacturer");
+
+            var android =
+                await Prop(d.Serial, "ro.build.version.release");
+
+            var sdk =
+                await Prop(d.Serial, "ro.build.version.sdk");
+
+            var abi =
+                await Prop(d.Serial, "ro.product.cpu.abi");
+
+            var slot =
+                await Prop(d.Serial, "ro.boot.slot_suffix");
+
+            var unlocked =
+                await Prop(d.Serial, "ro.boot.vbmeta.device_state");
+
+            var root = await _r.RunAsync(
+                _t.Adb,
+                [
+                    "-s",
+                    d.Serial,
+                    "shell",
+                    "su",
+                    "-c",
+                    "id"
+                ],
+                TimeSpan.FromSeconds(5));
+
+            var isRoot =
+                root.ExitCode == 0 &&
+                root.StdOut.Contains("uid=0",
+                    StringComparison.OrdinalIgnoreCase);
+
+            return d with
+            {
+                Model = string.IsNullOrWhiteSpace(model)
+                    ? d.Model
+                    : model,
+
+                Manufacturer = manufacturer,
+
+                Android = android,
+
+                Sdk = sdk,
+
+                Abi = abi,
+
+                Slot = string.IsNullOrWhiteSpace(slot)
+                    ? "—"
+                    : slot,
+
+                Root = isRoot,
+
+                Unlocked =
+                    unlocked.Equals("unlocked",
+                        StringComparison.OrdinalIgnoreCase)
+            };
+        }
+        catch
+        {
+            return d;
+        }
+    }
+
+    public async Task<Telemetry?> TelemetryAsync(DeviceInfo d)
+    {
+        if (_t.Adb is null)
+            return null;
+
+        try
+        {
+            var battery = await _r.RunAsync(
+                _t.Adb,
+                [
+                    "-s",
+                    d.Serial,
+                    "shell",
+                    "dumpsys",
+                    "battery"
+                ],
+                TimeSpan.FromSeconds(8));
+
+            var percent =
+                ParseDouble(battery.StdOut, "level");
+
+            var temperature =
+                ParseDouble(battery.StdOut, "temperature") / 10.0;
+
+            var uptime = await _r.RunAsync(
+                _t.Adb,
+                [
+                    "-s",
+                    d.Serial,
+                    "shell",
+                    "cat",
+                    "/proc/uptime"
+                ],
+                TimeSpan.FromSeconds(5));
+
+            var kernel = await _r.RunAsync(
+                _t.Adb,
+                [
+                    "-s",
+                    d.Serial,
+                    "shell",
+                    "uname",
+                    "-r"
+                ],
+                TimeSpan.FromSeconds(5));
+
+            var fingerprint =
+                await Prop(d.Serial, "ro.build.fingerprint");
+
+            return new Telemetry(
+                percent,
+                temperature,
+                0,
+                uptime.StdOut.Trim(),
+                kernel.StdOut.Trim(),
+                fingerprint);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<string> GetPropertyAsync(
+        string serial,
+        string key)
+    {
+        return await Prop(serial, key);
+    }
+
+    async Task<string> Prop(
+        string serial,
+        string key)
+    {
+        if (_t.Adb is null)
+            return "";
+
+        var r = await _r.RunAsync(
+            _t.Adb,
+            [
+                "-s",
+                serial,
+                "shell",
+                "getprop",
+                key
+            ],
+            TimeSpan.FromSeconds(8));
+
+        return r.StdOut.Trim();
+    }
+
+    static double ParseDouble(
+        string text,
+        string key)
+    {
+        var line = text
+            .Split('\n')
+            .FirstOrDefault(x =>
+                x.TrimStart()
+                    .StartsWith(
+                        key + ":",
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (line is null)
+            return 0;
+
+        var value =
+            line.Split(':').Last().Trim();
+
+        return double.TryParse(
+            value,
+            out var result)
+            ? result
+            : 0;
+    }
+}
+

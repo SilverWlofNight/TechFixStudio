@@ -1,66 +1,101 @@
-using System.IO;
 using System.Security.Cryptography;
 
 namespace TechFixStudio.Services;
 
 public sealed class Sha256Service
 {
-    public async Task<string> CalculateAsync(
-        string filePath,
-        CancellationToken cancellationToken = default)
+    public async Task<string> HashAsync(
+        string path,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default)
     {
-        if (!File.Exists(filePath))
+        if (!File.Exists(path))
         {
             throw new FileNotFoundException(
-                "找不到需要校验的文件。",
-                filePath);
+                "File not found.",
+                path);
         }
+
+        var fileInfo =
+            new FileInfo(path);
+
+        var total =
+            fileInfo.Length;
+
+        if (total <= 0)
+        {
+            using var empty =
+                SHA256.Create();
+
+            return Convert.ToHexString(
+                empty.ComputeHash(Array.Empty<byte>()))
+                .ToLowerInvariant();
+        }
+
+        using var sha =
+            SHA256.Create();
 
         await using var stream =
             new FileStream(
-                filePath,
+                path,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
                 1024 * 1024,
-                useAsync: true);
+                FileOptions.Asynchronous |
+                FileOptions.SequentialScan);
 
-        using var sha256 = SHA256.Create();
+        var buffer =
+            new byte[1024 * 1024];
 
-        var hash = await sha256.ComputeHashAsync(
-            stream,
-            cancellationToken);
+        long readTotal = 0;
 
-        return Convert.ToHexString(hash).ToLowerInvariant();
-    }
-
-    public async Task<bool> VerifyAsync(
-        string filePath,
-        string expectedHash,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(expectedHash))
+        while (true)
         {
-            return false;
+            var read =
+                await stream.ReadAsync(
+                    buffer.AsMemory(
+                        0,
+                        buffer.Length),
+                    ct);
+
+            if (read == 0)
+            {
+                break;
+            }
+
+            sha.TransformBlock(
+                buffer,
+                0,
+                read,
+                null,
+                0);
+
+            readTotal += read;
+
+            progress?.Report(
+                Math.Min(
+                    100,
+                    readTotal * 100.0 / total));
         }
 
-        var actual =
-            await CalculateAsync(
-                filePath,
-                cancellationToken);
+        sha.TransformFinalBlock(
+            Array.Empty<byte>(),
+            0,
+            0);
 
-        return string.Equals(
-            actual,
-            Normalize(expectedHash),
-            StringComparison.OrdinalIgnoreCase);
+        return Convert.ToHexString(
+                sha.Hash!)
+            .ToLowerInvariant();
     }
 
-    private static string Normalize(string value)
+    public Task<string> HashAsync(
+        string path,
+        CancellationToken ct)
     {
-        return value
-            .Trim()
-            .Replace(" ", string.Empty)
-            .Replace("-", string.Empty)
-            .ToLowerInvariant();
+        return HashAsync(
+            path,
+            null,
+            ct);
     }
 }

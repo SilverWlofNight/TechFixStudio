@@ -1,6 +1,4 @@
-using System;
 using System.Windows;
-using System.Windows.Controls;
 using TechFixStudio.Models;
 using TechFixStudio.ViewModels;
 
@@ -8,229 +6,212 @@ namespace TechFixStudio;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _vm;
-
     public MainWindow()
     {
         InitializeComponent();
-
-        _vm = new MainViewModel();
-        DataContext = _vm;
-
-        Loaded += MainWindow_Loaded;
+        DataContext = new MainViewModel();
     }
 
-    private async void MainWindow_Loaded(
+    private MainViewModel VM => (MainViewModel)DataContext;
+
+    private void Navigation_Click(object sender, RoutedEventArgs e)
+    {
+        var page = (sender as FrameworkElement)?.Tag?.ToString() ?? "Dashboard";
+
+        DashboardPage.Visibility = page == "Dashboard"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        AndroidPage.Visibility = page == "Android"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        FlashPage.Visibility = page == "Flash"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        RootPage.Visibility = page == "Root"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        TerminalPage.Visibility = page == "Terminal"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        FastbootPage.Visibility = page == "Fastboot"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        WindowsPage.Visibility = page == "Windows"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        LinuxPage.Visibility = page == "Linux"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        ResourcesPage.Visibility = page == "Resources"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        PluginsPage.Visibility = page == "Plugins"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private async void Refresh_Click(
         object sender,
         RoutedEventArgs e)
     {
-        try
-        {
-            await _vm.LoadFlashTasksAsync();
-            await _vm.RefreshDevicesAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                "TechFix Studio 初始化失败：\n\n" +
-                ex.Message,
-                "TechFix Studio",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
+        await VM.RefreshAsync();
     }
 
-    private void Navigation_Click(
+    private async void Execute_Click(
         object sender,
         RoutedEventArgs e)
     {
-        if (sender is not Button button)
-        {
-            return;
-        }
-
-        var page =
-            button.Tag?.ToString()
-            ?? "Dashboard";
-
-        ShowPage(page);
-    }
-
-    private void ShowPage(string page)
-    {
-        DashboardPage.Visibility = Visibility.Collapsed;
-        AndroidPage.Visibility = Visibility.Collapsed;
-        FlashPage.Visibility = Visibility.Collapsed;
-        RootPage.Visibility = Visibility.Collapsed;
-        TerminalPage.Visibility = Visibility.Collapsed;
-        FastbootPage.Visibility = Visibility.Collapsed;
-        WindowsPage.Visibility = Visibility.Collapsed;
-        LinuxPage.Visibility = Visibility.Collapsed;
-        ResourcesPage.Visibility = Visibility.Collapsed;
-        PluginsPage.Visibility = Visibility.Collapsed;
-
-        switch (page)
-        {
-            case "Android":
-                AndroidPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Flash":
-                FlashPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Root":
-                RootPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Terminal":
-                TerminalPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Fastboot":
-                FastbootPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Windows":
-                WindowsPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Linux":
-                LinuxPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Resources":
-                ResourcesPage.Visibility = Visibility.Visible;
-                break;
-
-            case "Plugins":
-                PluginsPage.Visibility = Visibility.Visible;
-                break;
-
-            default:
-                DashboardPage.Visibility = Visibility.Visible;
-                break;
-        }
-    }
-
-    private async void Scan_Click(
-        object sender,
-        RoutedEventArgs e)
-    {
-        try
-        {
-            await _vm.RefreshDevicesAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowError("设备扫描失败", ex);
-        }
-    }
-
-    private async void RunTerminal_Click(
-        object sender,
-        RoutedEventArgs e)
-    {
-        try
-        {
-            await _vm.RunTerminalAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowError("终端执行失败", ex);
-        }
+        await VM.RunCommandAsync();
     }
 
     private async void Sfc_Click(
         object sender,
         RoutedEventArgs e)
     {
-        try
-        {
-            await _vm.RunSfcAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowError("SFC 执行失败", ex);
-        }
+        await VM.RunSfcAsync();
+    }
+
+    private async void DismCheck_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RunDismCheckAsync();
     }
 
     private async void Dism_Click(
         object sender,
         RoutedEventArgs e)
     {
-        try
-        {
-            await _vm.RunDismAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowError("DISM 执行失败", ex);
-        }
+        await VM.RunDismAsync();
     }
 
-    private async void AddFlash_Click(
+    private async void BrowseFactory_Click(
         object sender,
         RoutedEventArgs e)
     {
-        try
+        var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            await _vm.AddFlashTaskAsync();
-        }
-        catch (Exception ex)
+            Filter =
+                "Factory / ROM|*.zip;*.img;*.bin|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
         {
-            ShowError("添加刷机任务失败", ex);
+            await VM.InspectFactoryAsync(dialog.FileName);
         }
     }
 
-    private async void LoadFlash_Click(
+    private void BrowseFlash_Click(
         object sender,
         RoutedEventArgs e)
     {
-        try
+        var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            await _vm.LoadFlashTasksAsync();
-        }
-        catch (Exception ex)
+            Filter =
+                "Android image|*.img;*.bin|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
         {
-            ShowError("加载刷机队列失败", ex);
+            VM.FlashPath = dialog.FileName;
         }
     }
 
-    private async void ExecuteFlash_Click(
+    private async void AddTask_Click(
         object sender,
         RoutedEventArgs e)
     {
-        try
-        {
-            if (FlashTaskList.SelectedItem is not FlashTask task)
-            {
-                MessageBox.Show(
-                    "请先选择一个刷机任务。",
-                    "Flash Center",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-
-                return;
-            }
-
-            await _vm.ExecuteFlashTaskAsync(task);
-        }
-        catch (Exception ex)
-        {
-            ShowError("执行刷机任务失败", ex);
-        }
+        await VM.AddTaskAsync();
     }
 
-    private static void ShowError(
-        string title,
-        Exception ex)
+    private async void RunQueue_Click(
+        object sender,
+        RoutedEventArgs e)
     {
-        MessageBox.Show(
-            $"{title}：\n\n{ex.Message}",
-            "TechFix Studio",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        await VM.RunQueueAsync();
+    }
+
+    private async void CancelQueue_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.CancelQueueAsync();
+    }
+
+    private async void RemoveTask_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RemoveTaskAsync(
+            (sender as FrameworkElement)?.DataContext as FlashTask);
+    }
+
+    private async void Fastboot_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.FastbootInfoAsync();
+    }
+
+    private async void Ssh_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RunSshAsync();
+    }
+
+    private async void DiagnoseAndroid_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.DiagnoseAndroidAsync();
+    }
+
+    private async void Logcat_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.LoadLogcatAsync();
+    }
+
+    private async void RootMagisk_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.InspectMagiskAsync();
+    }
+
+    private async void RebootBootloader_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RebootBootloaderAsync();
+    }
+
+    private async void RebootRecovery_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RebootRecoveryAsync();
+    }
+
+    private async void BuildFlashPlan_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.BuildFlashPlanAsync();
     }
 }
-

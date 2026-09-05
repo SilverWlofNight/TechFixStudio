@@ -1,0 +1,383 @@
+using System.IO.Compression;
+using TechFixStudio.Models;
+
+namespace TechFixStudio.Services;
+
+public sealed class FactoryImageService
+{
+    readonly Sha256Service _sha = new();
+
+    static readonly string[] Parts =
+    [
+        "vbmeta_system",
+        "vbmeta_vendor",
+        "init_boot",
+        "vendor_boot",
+        "system_ext",
+        "userdata",
+        "recovery",
+        "vendor",
+        "product",
+        "odm",
+        "system",
+        "super",
+        "vbmeta",
+        "boot",
+        "dtbo"
+    ];
+
+    static readonly HashSet<string> Critical =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "boot",
+            "init_boot",
+            "vendor_boot",
+            "vbmeta",
+            "vbmeta_system",
+            "vbmeta_vendor",
+            "super"
+        };
+
+    public async Task<RomPackage> InspectAsync(
+        string path)
+    {
+        var images = new List<RomImage>();
+
+        var scripts = new List<string>();
+
+        if (path.EndsWith(
+                ".zip",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            using var zip =
+                ZipFile.OpenRead(path);
+
+            foreach (var entry in zip.Entries)
+            {
+                var name =
+                    Path.GetFileName(entry.FullName);
+
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
+
+                if (name.StartsWith(
+                        "flash-all",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    name.EndsWith(
+                        ".bat",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    name.EndsWith(
+                        ".sh",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    scripts.Add(entry.FullName);
+                }
+
+                var ext =
+                    Path.GetExtension(name);
+
+                if (!ext.Equals(
+                        ".img",
+                        StringComparison.OrdinalIgnoreCase) &&
+                    !ext.Equals(
+                        ".bin",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var partition =
+                    Guess(name);
+
+                var temp =
+                    Path.Combine(
+                        Path.GetTempPath(),
+                        "tfs_" +
+                        Guid.NewGuid().ToString("N") +
+                        ext);
+
+                try
+                {
+                    await using (
+                        var input =
+                            entry.Open())
+                    await using (
+                        var output =
+                            File.Create(temp))
+                    {
+                        await input.CopyToAsync(
+                            output);
+                    }
+
+                    var size =
+                        new FileInfo(temp).Length;
+
+                    var hash =
+                        await _sha.HashAsync(temp);
+
+                    images.Add(
+                        new RomImage(
+                            partition,
+                            entry.FullName,
+                            size,
+                            hash,
+                            Critical.Contains(partition)));
+                }
+                finally
+                {
+                    try
+                    {
+                        if (File.Exists(temp))
+                            File.Delete(temp);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+        else if (File.Exists(path))
+        {
+            var name =
+                Path.GetFileName(path);
+
+            var partition =
+                Guess(name);
+
+            var size =
+                new FileInfo(path).Length;
+
+            var hash =
+                await _sha.HashAsync(path);
+
+            images.Add(
+                new RomImage(
+                    partition,
+                    path,
+                    size,
+                    hash,
+                    Critical.Contains(partition)));
+        }
+
+        return new RomPackage(
+            Path.GetFileName(path),
+            GuessProduct(path),
+            GuessBuild(path),
+            GuessRegion(path),
+            images,
+            scripts,
+            path);
+    }
+
+    public async Task<FlashPlan> BuildPlanAsync(
+        RomPackage package,
+        FastbootInfo? device)
+    {
+        var warnings = new List<string>();
+
+        var items = new List<FlashPlanItem>();
+
+        var safe = true;
+
+        if (device is null)
+        {
+            warnings.Add(
+                "没有可用的 Fastboot 设备。");
+
+            safe = false;
+        }
+        else
+        {
+            if (!IsUnlocked(device.Unlocked))
+            {
+                warnings.Add(
+                    "Bootloader 未确认处于 unlocked 状态。");
+
+                safe = false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    package.Product) &&
+                package.Product != "—" &&
+                device.Product != "—" &&
+                !device.Product.Equals(
+                    package.Product,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add(
+                    $"ROM Product [{package.Product}] " +
+                    $"与设备 [{device.Product}] 不一致。");
+
+                safe = false;
+            }
+
+            if (device.Secure.Equals(
+                    "yes",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add(
+                    "设备报告 secure=yes；继续前必须确认目标镜像和设备状态。");
+            }
+        }
+
+        foreach (var image in package.Images)
+        {
+            var recommended =
+                image.Partition is
+                    "boot" or
+                    "init_boot" or
+                    "vendor_boot" or
+                    "dtbo" or
+                    "vbmeta" or
+                    "vbmeta_system" or
+                    "vbmeta_vendor" or
+                    "recovery";
+
+            var reason =
+                recommended
+                    ? "受控 fastboot 镜像工作流"
+                    : "大型/动态分区，建议使用专用 Factory 工作流";
+
+            items.Add(
+                new FlashPlanItem
+                {
+                    Partition = image.Partition,
+
+                    ImagePath = image.Path,
+
+                    Size = image.Size,
+
+                    Sha256 = image.Sha256,
+
+                    Critical = image.Critical,
+
+                    Recommended = recommended,
+
+                    Reason = reason
+                });
+        }
+
+        return new FlashPlan
+        {
+            PackageName = package.Name,
+
+            DeviceSerial =
+                device?.Serial ?? "—",
+
+            DeviceProduct =
+                device?.Product ?? "—",
+
+            BootloaderState =
+                device?.Unlocked ?? "—",
+
+            SafeToProceed = safe,
+
+            Warnings = warnings,
+
+            Items = items
+        };
+    }
+
+    static string Guess(
+        string filename)
+    {
+        var name =
+            Path.GetFileNameWithoutExtension(filename)
+                .ToLowerInvariant();
+
+        foreach (var part in Parts)
+        {
+            if (name.Equals(
+                    part,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return part;
+            }
+
+            if (name.Contains(
+                    "_" + part,
+                    StringComparison.OrdinalIgnoreCase) ||
+                name.Contains(
+                    "-" + part,
+                    StringComparison.OrdinalIgnoreCase) ||
+                name.Contains(
+                    part + "_",
+                    StringComparison.OrdinalIgnoreCase) ||
+                name.Contains(
+                    part + "-",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return part;
+            }
+        }
+
+        return "unknown";
+    }
+
+    static string GuessProduct(
+        string path)
+    {
+        var name =
+            Path.GetFileNameWithoutExtension(path);
+
+        var lower =
+            name.ToLowerInvariant();
+
+        if (lower.Contains("pixel"))
+            return "pixel";
+
+        return "—";
+    }
+
+    static string GuessBuild(
+        string path)
+    {
+        var name =
+            Path.GetFileNameWithoutExtension(path);
+
+        return string.IsNullOrWhiteSpace(name)
+            ? "—"
+            : name;
+    }
+
+    static string GuessRegion(
+        string path)
+    {
+        var name =
+            Path.GetFileNameWithoutExtension(path);
+
+        if (name.Contains(
+                "global",
+                StringComparison.OrdinalIgnoreCase))
+            return "Global";
+
+        if (name.Contains(
+                "cn",
+                StringComparison.OrdinalIgnoreCase))
+            return "CN";
+
+        if (name.Contains(
+                "eu",
+                StringComparison.OrdinalIgnoreCase))
+            return "EU";
+
+        return "—";
+    }
+
+    static bool IsUnlocked(
+        string value)
+    {
+        return value.Equals(
+                   "yes",
+                   StringComparison.OrdinalIgnoreCase) ||
+               value.Equals(
+                   "true",
+                   StringComparison.OrdinalIgnoreCase) ||
+               value.Equals(
+                   "1",
+                   StringComparison.OrdinalIgnoreCase) ||
+               value.Equals(
+                   "unlocked",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+}

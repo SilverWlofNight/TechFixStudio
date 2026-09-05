@@ -1,0 +1,487 @@
+using System.Globalization;
+using System.Text;
+using TechFixStudio.Models;
+
+namespace TechFixStudio.Services;
+
+public sealed class AndroidDiagnosticsService
+{
+    readonly ToolLocator _t = new();
+    readonly ProcessRunner _r = new();
+
+    public async Task<AndroidDiagnostics?> CollectAsync(
+        DeviceInfo device)
+    {
+        if (_t.Adb is null)
+            return null;
+
+        if (device.Transport != Transport.Adb)
+            return null;
+
+        var serial = device.Serial;
+
+        async Task<string> P(string key)
+        {
+            return await Prop(serial, key);
+        }
+
+        var brand = await P("ro.product.brand");
+        var manufacturer = await P("ro.product.manufacturer");
+        var model = await P("ro.product.model");
+        var deviceName = await P("ro.product.device");
+        var product = await P("ro.product.name");
+
+        var android = await P("ro.build.version.release");
+        var sdk = await P("ro.build.version.sdk");
+        var patch = await P("ro.build.version.security_patch");
+        var buildId = await P("ro.build.id");
+        var fingerprint = await P("ro.build.fingerprint");
+
+        var abi = await P("ro.product.cpu.abi");
+        var abi64 = await P("ro.product.cpu.abilist64");
+
+        var kernelResult = await Shell(
+            serial,
+            "uname -r");
+
+        var slot = await P("ro.boot.slot_suffix");
+
+        var verifiedBoot =
+            await P("ro.boot.verifiedbootstate");
+
+        var vbmetaState =
+            await P("ro.boot.vbmeta.device_state");
+
+        var avbVersion =
+            await P("ro.boot.avb_version");
+
+        var bootReason =
+            await P("ro.boot.bootreason");
+
+        var battery = await ReadBatteryAsync(serial);
+        var memory = await ReadMemoryAsync(serial);
+        var storage = await ReadStorageAsync(serial);
+        var cpu = await ReadCpuAsync(serial);
+
+        var uptimeResult =
+            await Shell(serial, "cat /proc/uptime");
+
+        return new AndroidDiagnostics
+        {
+            Serial = serial,
+
+            Brand = brand,
+            Manufacturer = manufacturer,
+            Model = model,
+            Device = deviceName,
+            Product = product,
+
+            AndroidVersion = android,
+            Sdk = sdk,
+            SecurityPatch = patch,
+            BuildId = buildId,
+            Fingerprint = fingerprint,
+
+            Abi = abi,
+            Abi64 = abi64,
+
+            Kernel = kernelResult.Trim(),
+            Slot = slot,
+
+            VerifiedBootState = verifiedBoot,
+            VbmetaDeviceState = vbmetaState,
+            AvbVersion = avbVersion,
+            BootReason = bootReason,
+
+            Battery = battery,
+            Memory = memory,
+            Storage = storage,
+            Cpu = cpu,
+
+            Uptime = uptimeResult.Trim()
+        };
+    }
+
+    public async Task<string> GetLogcatAsync(
+        DeviceInfo device,
+        int lines = 300)
+    {
+        if (_t.Adb is null)
+            return "ADB unavailable.";
+
+        if (device.Transport != Transport.Adb)
+            return "Selected device is not an ADB device.";
+
+        lines = Math.Clamp(lines, 20, 2000);
+
+        var r = await _r.RunAsync(
+            _t.Adb,
+            [
+                "-s",
+                device.Serial,
+                "logcat",
+                "-d",
+                "-t",
+                lines.ToString(CultureInfo.InvariantCulture)
+            ],
+            TimeSpan.FromSeconds(30));
+
+        return (r.StdOut + r.StdErr).Trim();
+    }
+
+    public async Task<string> GetRootStatusAsync(
+        DeviceInfo device)
+    {
+        if (_t.Adb is null)
+            return "ADB unavailable.";
+
+        var r = await _r.RunAsync(
+            _t.Adb,
+            [
+                "-s",
+                device.Serial,
+                "shell",
+                "su",
+                "-c",
+                "id"
+            ],
+            TimeSpan.FromSeconds(8));
+
+        if (r.ExitCode == 0 &&
+            r.StdOut.Contains(
+                "uid=0",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "ROOT AVAILABLE\r\n" +
+                   r.StdOut.Trim();
+        }
+
+        return "ROOT NOT AVAILABLE\r\n" +
+               (r.StdErr + r.StdOut).Trim();
+    }
+
+    public async Task<CommandResult> RebootAsync(
+        DeviceInfo device,
+        string target)
+    {
+        if (_t.Adb is null)
+        {
+            return new CommandResult(
+                -1,
+                "",
+                "ADB unavailable.",
+                TimeSpan.Zero,
+                false);
+        }
+
+        if (device.Transport != Transport.Adb)
+        {
+            return new CommandResult(
+                -1,
+                "",
+                "Selected device is not ADB.",
+                TimeSpan.Zero,
+                false);
+        }
+
+        var argument = target switch
+        {
+            "bootloader" => "bootloader",
+            "recovery" => "recovery",
+            "system" => "",
+            _ => ""
+        };
+
+        var args = new List<string>
+        {
+            "-s",
+            device.Serial,
+            "reboot"
+        };
+
+        if (!string.IsNullOrWhiteSpace(argument))
+            args.Add(argument);
+
+        return await _r.RunAsync(
+            _t.Adb,
+            args,
+            TimeSpan.FromSeconds(30));
+    }
+
+    async Task<AndroidBatteryInfo> ReadBatteryAsync(
+        string serial)
+    {
+        var r = await ShellRaw(
+            serial,
+            "dumpsys battery");
+
+        var level = ParseDouble(r, "level");
+
+        var temp =
+            ParseDouble(r, "temperature") / 10.0;
+
+        var voltage =
+            ParseDouble(r, "voltage");
+
+        var health =
+            ParseString(r, "health");
+
+        var status =
+            ParseString(r, "status");
+
+        return new AndroidBatteryInfo(
+            level,
+            temp,
+            voltage,
+            health,
+            status);
+    }
+
+    async Task<AndroidMemoryInfo> ReadMemoryAsync(
+        string serial)
+    {
+        var r = await ShellRaw(
+            serial,
+            "cat /proc/meminfo");
+
+        var total =
+            ParseKb(r, "MemTotal");
+
+        var available =
+            ParseKb(r, "MemAvailable");
+
+        if (available == 0)
+            available =
+                ParseKb(r, "MemFree");
+
+        var used =
+            Math.Max(0, total - available);
+
+        var percent =
+            total > 0
+                ? used * 100.0 / total
+                : 0;
+
+        return new AndroidMemoryInfo(
+            total,
+            available,
+            used,
+            percent);
+    }
+
+    async Task<AndroidStorageInfo> ReadStorageAsync(
+        string serial)
+    {
+        var r = await ShellRaw(
+            serial,
+            "df -k /data");
+
+        var lines =
+            r.Split('\n',
+                StringSplitOptions.RemoveEmptyEntries);
+
+        if (lines.Length < 2)
+            return new AndroidStorageInfo(
+                0,
+                0,
+                0,
+                0);
+
+        var line = lines[^1]
+            .Trim()
+            .Split(
+                ' ',
+                StringSplitOptions.RemoveEmptyEntries);
+
+        if (line.Length < 4)
+            return new AndroidStorageInfo(
+                0,
+                0,
+                0,
+                0);
+
+        if (!long.TryParse(
+                line[1],
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var blocks))
+            blocks = 0;
+
+        if (!long.TryParse(
+                line[2],
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var used))
+            used = 0;
+
+        if (!long.TryParse(
+                line[3],
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var available))
+            available = 0;
+
+        var totalBytes = blocks * 1024L;
+        var usedBytes = used * 1024L;
+        var availableBytes = available * 1024L;
+
+        var percent =
+            totalBytes > 0
+                ? usedBytes * 100.0 / totalBytes
+                : 0;
+
+        return new AndroidStorageInfo(
+            totalBytes,
+            usedBytes,
+            availableBytes,
+            percent);
+    }
+
+    async Task<AndroidCpuInfo> ReadCpuAsync(
+        string serial)
+    {
+        var r = await ShellRaw(
+            serial,
+            "cat /proc/cpuinfo");
+
+        var cores =
+            r.Split('\n')
+             .Count(x =>
+                 x.TrimStart()
+                  .StartsWith(
+                      "processor",
+                      StringComparison.OrdinalIgnoreCase));
+
+        var hardware =
+            ParseString(r, "Hardware");
+
+        if (cores <= 0)
+            cores = 1;
+
+        return new AndroidCpuInfo(
+            cores,
+            hardware);
+    }
+
+    async Task<string> Prop(
+        string serial,
+        string key)
+    {
+        var r = await _r.RunAsync(
+            _t.Adb!,
+            [
+                "-s",
+                serial,
+                "shell",
+                "getprop",
+                key
+            ],
+            TimeSpan.FromSeconds(8));
+
+        return r.StdOut.Trim();
+    }
+
+    async Task<string> Shell(
+        string serial,
+        string command)
+    {
+        var r = await ShellRaw(serial, command);
+        return r.Trim();
+    }
+
+    async Task<string> ShellRaw(
+        string serial,
+        string command)
+    {
+        if (_t.Adb is null)
+            return "";
+
+        var r = await _r.RunAsync(
+            _t.Adb,
+            [
+                "-s",
+                serial,
+                "shell",
+                command
+            ],
+            TimeSpan.FromSeconds(15));
+
+        return r.StdOut + r.StdErr;
+    }
+
+    static double ParseDouble(
+        string text,
+        string key)
+    {
+        var line = text
+            .Split('\n')
+            .FirstOrDefault(x =>
+                x.TrimStart()
+                    .StartsWith(
+                        key + ":",
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (line is null)
+            return 0;
+
+        var value =
+            line.Split(':').Last().Trim();
+
+        return double.TryParse(
+            value,
+            NumberStyles.Any,
+            CultureInfo.InvariantCulture,
+            out var result)
+            ? result
+            : 0;
+    }
+
+    static long ParseKb(
+        string text,
+        string key)
+    {
+        var line = text
+            .Split('\n')
+            .FirstOrDefault(x =>
+                x.TrimStart()
+                    .StartsWith(
+                        key + ":",
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (line is null)
+            return 0;
+
+        var value =
+            line.Split(':')
+                .Last()
+                .Trim()
+                .Split(' ')
+                .FirstOrDefault();
+
+        return long.TryParse(
+            value,
+            out var result)
+            ? result
+            : 0;
+    }
+
+    static string ParseString(
+        string text,
+        string key)
+    {
+        var line = text
+            .Split('\n')
+            .FirstOrDefault(x =>
+                x.TrimStart()
+                    .StartsWith(
+                        key + ":",
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (line is null)
+            return "";
+
+        return line.Split(':')
+            .Last()
+            .Trim();
+    }
+}
