@@ -513,7 +513,7 @@
                         </Grid.RowDefinitions>
 
                         <TextBox
-                            Text="{Binding TerminalOutput}"
+                            Text="{Binding Terminal, Mode=OneWay}"
                             IsReadOnly="True"
                             TextWrapping="Wrap"
                             VerticalScrollBarVisibility="Auto"
