@@ -4,161 +4,94 @@ namespace TechFixStudio.Services;
 
 public sealed class RootMagiskService
 {
-    readonly ToolLocator _t = new();
-    readonly ProcessRunner _r = new();
+    private readonly MagiskService _magisk;
 
-    public async Task<RootMagiskInfo?> InspectAsync(
-        DeviceInfo device)
+    public RootMagiskService()
+        : this(new MagiskService())
     {
-        if (_t.Adb is null)
-            return null;
+    }
 
-        if (device.Transport != Transport.Adb)
-            return null;
+    public RootMagiskService(
+        MagiskService magisk)
+    {
+        _magisk = magisk;
+    }
 
-        var serial = device.Serial;
+    public async Task<RootMagiskInfo> InspectAsync(
+        string serial,
+        CancellationToken ct = default)
+    {
+        var result =
+            new RootMagiskInfo
+            {
+                DeviceId =
+                    serial ?? string.Empty
+            };
 
-        var rootResult = await RunSuAsync(
-            serial,
-            "id");
-
-        var rootAvailable =
-            rootResult.ExitCode == 0 &&
-            rootResult.StdOut.Contains(
-                "uid=0",
-                StringComparison.OrdinalIgnoreCase);
-
-        var magiskVersion =
-            await RunShellAsync(
-                serial,
-                "magisk -v");
-
-        var magiskPath =
-            await RunShellAsync(
-                serial,
-                "command -v magisk");
-
-        var suPath =
-            await RunShellAsync(
-                serial,
-                "command -v su");
-
-        var zygisk =
-            await RunShellAsync(
-                serial,
-                "getprop persist.sys.zgisk");
-
-        if (string.IsNullOrWhiteSpace(zygisk))
+        if (string.IsNullOrWhiteSpace(serial))
         {
-            zygisk =
-                await RunShellAsync(
-                    serial,
-                    "getprop ro.dalvik.vm.native.bridge");
+            result.Message =
+                "No Android device selected.";
+
+            return result;
         }
 
-        var denyList =
-            await RunShellAsync(
-                serial,
-                "getprop persist.magisk.denylist");
-
-        var modules =
-            await GetModulesAsync(serial);
-
-        var magiskDetected =
-            !string.IsNullOrWhiteSpace(
-                magiskVersion) ||
-            !string.IsNullOrWhiteSpace(
-                magiskPath) ||
-            modules.Count > 0;
-
-        var raw =
-            rootResult.StdOut +
-            rootResult.StdErr +
-            Environment.NewLine +
-            magiskVersion;
-
-        return new RootMagiskInfo
+        try
         {
-            RootAvailable = rootAvailable,
+            var info =
+                await _magisk.InspectAsync(
+                    serial,
+                    ct);
 
-            MagiskDetected = magiskDetected,
+            if (info is null)
+            {
+                result.Message =
+                    "Magisk inspection failed.";
 
-            MagiskVersion =
-                magiskVersion.Trim(),
+                return result;
+            }
 
-            MagiskPath =
-                magiskPath.Trim(),
+            result.RootDetected =
+                info.RootDetected;
 
-            SuPath =
-                suPath.Trim(),
+            result.MagiskDetected =
+                info.MagiskDetected;
 
-            Zygisk =
-                zygisk.Trim(),
+            result.Version =
+                info.Version;
 
-            DenyList =
-                denyList.Trim(),
+            result.Zygisk =
+                info.Zygisk;
 
-            Modules = modules,
+            result.DenyList =
+                info.DenyList;
 
-            Raw = raw.Trim()
-        };
+            result.InstallPath =
+                info.InstallPath;
+
+            result.Raw =
+                info.Raw;
+
+            result.Message =
+                "Magisk inspection complete.";
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            result.Message =
+                ex.Message;
+
+            return result;
+        }
     }
 
-    public async Task<List<string>> GetModulesAsync(
-        string serial)
+    public Task<RootMagiskInfo> InspectRootMagiskAsync(
+        string serial,
+        CancellationToken ct = default)
     {
-        var result = await RunSuAsync(
+        return InspectAsync(
             serial,
-            "ls -1 /data/adb/modules 2>/dev/null");
-
-        if (result.ExitCode != 0)
-            return new List<string>();
-
-        return result.StdOut
-            .Split(
-                '\n',
-                StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => x.Trim())
-            .Where(x => x.Length > 0)
-            .Distinct(
-                StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    async Task<CommandResult> RunSuAsync(
-        string serial,
-        string command)
-    {
-        return await _r.RunAsync(
-            _t.Adb!,
-            [
-                "-s",
-                serial,
-                "shell",
-                "su",
-                "-c",
-                command
-            ],
-            TimeSpan.FromSeconds(15));
-    }
-
-    async Task<string> RunShellAsync(
-        string serial,
-        string command)
-    {
-        var result = await _r.RunAsync(
-            _t.Adb!,
-            [
-                "-s",
-                serial,
-                "shell",
-                command
-            ],
-            TimeSpan.FromSeconds(10));
-
-        return (
-            result.StdOut +
-            result.StdErr
-        ).Trim();
+            ct);
     }
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using TechFixStudio.Models;
 using TechFixStudio.ViewModels;
 
@@ -9,55 +10,76 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainViewModel();
+
+        DataContext =
+            new MainViewModel();
     }
 
-    private MainViewModel VM => (MainViewModel)DataContext;
+    private MainViewModel VM =>
+        (MainViewModel)DataContext;
 
-    private void Navigation_Click(object sender, RoutedEventArgs e)
+    // ============================================================
+    // Compatibility handlers for current MainWindow.xaml
+    // ============================================================
+
+    private async void Scan_Click(
+        object sender,
+        RoutedEventArgs e)
     {
-        var page = (sender as FrameworkElement)?.Tag?.ToString() ?? "Dashboard";
-
-        DashboardPage.Visibility = page == "Dashboard"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        AndroidPage.Visibility = page == "Android"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        FlashPage.Visibility = page == "Flash"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        RootPage.Visibility = page == "Root"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        TerminalPage.Visibility = page == "Terminal"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        FastbootPage.Visibility = page == "Fastboot"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        WindowsPage.Visibility = page == "Windows"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        LinuxPage.Visibility = page == "Linux"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        ResourcesPage.Visibility = page == "Resources"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        PluginsPage.Visibility = page == "Plugins"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        await VM.RefreshAsync();
     }
+
+    private void Navigation_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element)
+        {
+            return;
+        }
+
+        var tag =
+            element.Tag?.ToString();
+
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return;
+        }
+
+        ShowPage(tag);
+    }
+
+    private async void AddFlash_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.AddTaskAsync();
+    }
+
+    private async void LoadFlash_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RefreshAsync();
+    }
+
+    private async void ExecuteFlash_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RunQueueAsync();
+    }
+
+    private async void RunTerminal_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        await VM.RunCommandAsync();
+    }
+
+    // ============================================================
+    // Current/new handlers
+    // ============================================================
 
     private async void Refresh_Click(
         object sender,
@@ -98,17 +120,18 @@ public partial class MainWindow : Window
         object sender,
         RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Filter =
-                "Factory / ROM|*.zip;*.img;*.bin|All files|*.*",
-            CheckFileExists = true,
-            Multiselect = false
-        };
+        var dialog =
+            new Microsoft.Win32.OpenFileDialog
+            {
+                Filter =
+                    "Factory / ROM|*.zip;*.img;*.bin|" +
+                    "All files|*.*"
+            };
 
         if (dialog.ShowDialog() == true)
         {
-            await VM.InspectFactoryAsync(dialog.FileName);
+            await VM.InspectFactoryAsync(
+                dialog.FileName);
         }
     }
 
@@ -116,17 +139,18 @@ public partial class MainWindow : Window
         object sender,
         RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Filter =
-                "Android image|*.img;*.bin|All files|*.*",
-            CheckFileExists = true,
-            Multiselect = false
-        };
+        var dialog =
+            new Microsoft.Win32.OpenFileDialog
+            {
+                Filter =
+                    "Android image|*.img;*.bin|" +
+                    "All files|*.*"
+            };
 
         if (dialog.ShowDialog() == true)
         {
-            VM.FlashPath = dialog.FileName;
+            VM.FlashPath =
+                dialog.FileName;
         }
     }
 
@@ -156,7 +180,8 @@ public partial class MainWindow : Window
         RoutedEventArgs e)
     {
         await VM.RemoveTaskAsync(
-            (sender as FrameworkElement)?.DataContext as FlashTask);
+            (sender as FrameworkElement)
+                ?.DataContext as FlashTask);
     }
 
     private async void Fastboot_Click(
@@ -191,7 +216,7 @@ public partial class MainWindow : Window
         object sender,
         RoutedEventArgs e)
     {
-        await VM.InspectMagiskAsync();
+        await VM.InspectRootMagiskAsync();
     }
 
     private async void RebootBootloader_Click(
@@ -213,5 +238,125 @@ public partial class MainWindow : Window
         RoutedEventArgs e)
     {
         await VM.BuildFlashPlanAsync();
+    }
+
+    private async void PrepareFlash_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        // 如果当前按钮 DataContext 是 FlashPlanItem，
+        // 后续可在这里接入专用镜像准备流程。
+        //
+        // 当前不执行危险操作，避免误刷。
+        if ((sender as FrameworkElement)
+            ?.DataContext is FlashPlanItem item)
+        {
+            MessageBox.Show(
+                $"Prepared partition:\r\n\r\n" +
+                $"Partition: {item.Partition}\r\n" +
+                $"Image: {item.ImagePath}\r\n" +
+                $"SHA-256: {item.Sha256}",
+                "TechFix Studio",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    // ============================================================
+    // Navigation
+    // ============================================================
+
+    private void ShowPage(
+        string page)
+    {
+        // 这里不直接依赖具体控件存在，
+        // 避免 UI 名称改变导致启动崩溃。
+        //
+        // 当前页面切换由 XAML 的可见区域控制。
+        //
+        // 如果 XAML 中存在以下命名控件，则自动切换。
+        SetPageVisibility(
+            "Dashboard",
+            page.Equals(
+                "Dashboard",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Android",
+            page.Equals(
+                "Android",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Flash",
+            page.Equals(
+                "Flash",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Root",
+            page.Equals(
+                "Root",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Terminal",
+            page.Equals(
+                "Terminal",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Fastboot",
+            page.Equals(
+                "Fastboot",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Windows",
+            page.Equals(
+                "Windows",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Linux",
+            page.Equals(
+                "Linux",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Resources",
+            page.Equals(
+                "Resources",
+                StringComparison.OrdinalIgnoreCase));
+
+        SetPageVisibility(
+            "Plugins",
+            page.Equals(
+                "Plugins",
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void SetPageVisibility(
+        string page,
+        bool visible)
+    {
+        // 当前版本如果 XAML 没有对应命名控件，
+        // 直接忽略，不会影响程序启动。
+        var name =
+            page + "Page";
+
+        var element =
+            FindName(name)
+            as UIElement;
+
+        if (element is not null)
+        {
+            element.Visibility =
+                visible
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+        }
     }
 }

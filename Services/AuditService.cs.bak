@@ -1,9 +1,25 @@
-using System.IO;
 using System.Text.Json;
 using TechFixStudio.Infrastructure;
 using TechFixStudio.Models;
 
 namespace TechFixStudio.Services;
+
+public sealed class AuditRecord
+{
+    public DateTime TimestampUtc { get; set; }
+
+    public string User { get; set; } = "";
+
+    public string Action { get; set; } = "";
+
+    public string Target { get; set; } = "";
+
+    public RiskLevel Risk { get; set; }
+
+    public bool Success { get; set; }
+
+    public string Message { get; set; } = "";
+}
 
 public sealed class AuditService
 {
@@ -19,29 +35,34 @@ public sealed class AuditService
         string target,
         RiskLevel risk,
         bool success,
-        string message)
+        string message,
+        CancellationToken cancellationToken = default)
     {
+        AppPaths.EnsureDirectories();
+
         var record = new AuditRecord
         {
             TimestampUtc = DateTime.UtcNow,
             User = Environment.UserName,
-            Action = action,
-            Target = target,
+            Action = action ?? "",
+            Target = target ?? "",
             Risk = risk,
             Success = success,
-            Message = message
+            Message = message ?? ""
         };
 
-        var line =
-            JsonSerializer.Serialize(record, JsonOptions);
+        var line = JsonSerializer.Serialize(
+            record,
+            JsonOptions);
 
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(cancellationToken);
 
         try
         {
             await File.AppendAllTextAsync(
                 AppPaths.AuditLogFile,
-                line + Environment.NewLine);
+                line + Environment.NewLine,
+                cancellationToken);
         }
         finally
         {

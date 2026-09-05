@@ -9,190 +9,209 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
-        DataContext =
-            new MainViewModel();
+        DataContext = new MainViewModel();
     }
 
-    MainViewModel VM =>
-        (MainViewModel)DataContext;
+    private MainViewModel VM => (MainViewModel)DataContext;
 
-    async void Refresh_Click(
+    private void Navigation_Click(object sender, RoutedEventArgs e)
+    {
+        var page = (sender as FrameworkElement)?.Tag?.ToString() ?? "Dashboard";
+
+        DashboardPage.Visibility = page == "Dashboard"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        AndroidPage.Visibility = page == "Android"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        FlashPage.Visibility = page == "Flash"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        RootPage.Visibility = page == "Root"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        TerminalPage.Visibility = page == "Terminal"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        FastbootPage.Visibility = page == "Fastboot"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        WindowsPage.Visibility = page == "Windows"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        LinuxPage.Visibility = page == "Linux"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        ResourcesPage.Visibility = page == "Resources"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        PluginsPage.Visibility = page == "Plugins"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private async void Refresh_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RefreshAsync();
     }
 
-    async void Execute_Click(
+    private async void Execute_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RunCommandAsync();
     }
 
-    async void Sfc_Click(
+    private async void Sfc_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RunSfcAsync();
     }
 
-    async void DismCheck_Click(
+    private async void DismCheck_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RunDismCheckAsync();
     }
 
-    async void Dism_Click(
+    private async void Dism_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RunDismAsync();
     }
 
-    async void BrowseFactory_Click(
+    private async void BrowseFactory_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var dialog =
-            new Microsoft.Win32.OpenFileDialog
-            {
-                Filter =
-                    "Factory / ROM|*.zip;*.img;*.bin|" +
-                    "All files|*.*"
-            };
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter =
+                "Factory / ROM|*.zip;*.img;*.bin|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
 
         if (dialog.ShowDialog() == true)
         {
-            await VM.InspectFactoryAsync(
-                dialog.FileName);
+            await VM.InspectFactoryAsync(dialog.FileName);
         }
     }
 
-    void BrowseFlash_Click(
+    private void BrowseFlash_Click(
         object sender,
         RoutedEventArgs e)
     {
-        var dialog =
-            new Microsoft.Win32.OpenFileDialog
-            {
-                Filter =
-                    "Android image|*.img;*.bin|" +
-                    "All files|*.*"
-            };
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter =
+                "Android image|*.img;*.bin|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
 
         if (dialog.ShowDialog() == true)
         {
-            VM.FlashPath =
-                dialog.FileName;
+            VM.FlashPath = dialog.FileName;
         }
     }
 
-    async void AddTask_Click(
+    private async void AddTask_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.AddTaskAsync();
     }
 
-    async void RunQueue_Click(
+    private async void RunQueue_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RunQueueAsync();
     }
 
-    async void CancelQueue_Click(
+    private async void CancelQueue_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.CancelQueueAsync();
     }
 
-    async void RemoveTask_Click(
+    private async void RemoveTask_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RemoveTaskAsync(
-            (sender as FrameworkElement)
-                ?.DataContext as FlashTask);
+            (sender as FrameworkElement)?.DataContext as FlashTask);
     }
 
-    async void Fastboot_Click(
+    private async void Fastboot_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.FastbootInfoAsync();
     }
 
-    async void Ssh_Click(
+    private async void Ssh_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RunSshAsync();
     }
 
-    //
-    // Android 2.0
-    //
-
-    async void DiagnoseAndroid_Click(
+    private async void DiagnoseAndroid_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.DiagnoseAndroidAsync();
     }
 
-    async void Logcat_Click(
+    private async void Logcat_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.LoadLogcatAsync();
     }
 
-    async void RootMagisk_Click(
+    private async void RootMagisk_Click(
         object sender,
         RoutedEventArgs e)
     {
-        await VM.InspectRootMagiskAsync();
+        await VM.InspectMagiskAsync();
     }
 
-    async void RebootBootloader_Click(
+    private async void RebootBootloader_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RebootBootloaderAsync();
     }
 
-    async void RebootRecovery_Click(
+    private async void RebootRecovery_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.RebootRecoveryAsync();
     }
 
-    //
-    // Flash Center 2.0
-    //
-
-    async void BuildFlashPlan_Click(
+    private async void BuildFlashPlan_Click(
         object sender,
         RoutedEventArgs e)
     {
         await VM.BuildFlashPlanAsync();
-    }
-
-    async void PrepareFlash_Click(
-        object sender,
-        RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)
-            ?.DataContext is FlashPlanItem item)
-        {
-            await VM.PrepareFlashImageAsync(
-                item);
-        }
     }
 }

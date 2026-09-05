@@ -1,0 +1,109 @@
+using TechFixStudio.Models;
+
+namespace TechFixStudio.Services;
+
+public sealed class RootMagiskService
+{
+    private readonly AndroidService _android;
+    private readonly MagiskService _magisk;
+
+    public RootMagiskService()
+        : this(
+            new AndroidService(),
+            new MagiskService())
+    {
+    }
+
+    public RootMagiskService(
+        AndroidService android,
+        MagiskService magisk)
+    {
+        _android = android;
+        _magisk = magisk;
+    }
+
+    /// <summary>
+    /// 检查当前 Android 设备的 Root / Magisk 状态。
+    /// </summary>
+    public async Task<RootMagiskInfo> InspectAsync(
+        CancellationToken ct = default)
+    {
+        var info = new RootMagiskInfo();
+
+        try
+        {
+            var device =
+                await _android.GetDeviceInfoAsync(ct);
+
+            if (device is not null)
+            {
+                info.DeviceId =
+                    device.Serial
+                    ?? device.DeviceId
+                    ?? string.Empty;
+
+                info.DeviceModel =
+                    device.Model
+                    ?? string.Empty;
+
+                info.Manufacturer =
+                    device.Manufacturer
+                    ?? string.Empty;
+            }
+        }
+        catch
+        {
+            // 设备信息获取失败不影响后续 Root/Magisk 检测。
+        }
+
+        try
+        {
+            var magisk =
+                await _magisk.InspectAsync(ct);
+
+            if (magisk is not null)
+            {
+                info.IsRooted =
+                    magisk.IsRooted;
+
+                info.MagiskInstalled =
+                    magisk.MagiskInstalled;
+
+                info.MagiskVersion =
+                    magisk.Version
+                    ?? string.Empty;
+
+                info.ZygiskEnabled =
+                    magisk.ZygiskEnabled;
+
+                info.DenyListEnabled =
+                    magisk.DenyListEnabled;
+
+                info.InstallPath =
+                    magisk.InstallPath
+                    ?? string.Empty;
+
+                info.ModuleCount =
+                    magisk.Modules?.Count ?? 0;
+            }
+        }
+        catch
+        {
+            // Magisk 不存在时属于正常情况。
+        }
+
+        info.CheckedUtc =
+            DateTime.UtcNow;
+
+        return info;
+    }
+
+    /// <summary>
+    /// 兼容旧调用名称。
+    /// </summary>
+    public Task<RootMagiskInfo> InspectRootMagiskAsync(
+        CancellationToken ct = default)
+    {
+        return InspectAsync(ct);
+    }
+}

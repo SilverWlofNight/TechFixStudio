@@ -84,7 +84,8 @@ public sealed record RomPackage(
 
 public sealed class FlashTask
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Id { get; set; } =
+        Guid.NewGuid().ToString("N");
 
     public string Serial { get; set; } = "";
 
@@ -96,13 +97,16 @@ public sealed class FlashTask
 
     public long Size { get; set; }
 
-    public TaskState State { get; set; } = TaskState.Queued;
+    public TaskState State { get; set; } =
+        TaskState.Queued;
 
-    public string Message { get; set; } = "Queued";
+    public string Message { get; set; } =
+        "Queued";
 
     public double Progress { get; set; }
 
-    public DateTime Created { get; set; } = DateTime.Now;
+    public DateTime Created { get; set; } =
+        DateTime.Now;
 
     public DateTime? Started { get; set; }
 
@@ -125,6 +129,52 @@ public sealed record HistoryEntry(
     string Risk,
     string Details);
 
+//
+// Compatibility model used by the 2.0 history service.
+//
+
+public sealed class HistoryRecord
+{
+    public DateTime TimestampUtc { get; set; }
+
+    public string Action { get; set; } = "";
+
+    public string Device { get; set; } = "";
+
+    public string Result { get; set; } = "";
+
+    public string Details { get; set; } = "";
+}
+
+//
+// Compatibility model used by the 2.0 ROM catalog.
+//
+
+public sealed class RomEntry
+{
+    public Guid Id { get; set; } =
+        Guid.NewGuid();
+
+    public string Name { get; set; } = "";
+
+    public string Product { get; set; } = "";
+
+    public string Version { get; set; } = "";
+
+    public string Region { get; set; } = "";
+
+    public string Codename { get; set; } = "";
+
+    public string Url { get; set; } = "";
+
+    public string Sha256 { get; set; } = "";
+
+    public string Notes { get; set; } = "";
+
+    public DateTime CreatedUtc { get; set; } =
+        DateTime.UtcNow;
+}
+
 public sealed record RomResource(
     string Name,
     string Product,
@@ -134,6 +184,31 @@ public sealed record RomResource(
     string Url,
     string Sha256,
     string Notes);
+
+//
+// Audit record.
+//
+
+public sealed class AuditRecord
+{
+    public DateTime TimestampUtc { get; set; }
+
+    public string User { get; set; } = "";
+
+    public string Action { get; set; } = "";
+
+    public string Target { get; set; } = "";
+
+    public RiskLevel Risk { get; set; }
+
+    public bool Success { get; set; }
+
+    public string Message { get; set; } = "";
+}
+
+//
+// Android diagnostics.
+//
 
 public sealed class AndroidDiagnostics
 {
@@ -213,6 +288,35 @@ public sealed record AndroidCpuInfo(
     int CoreCount,
     string Hardware);
 
+//
+// Root / Magisk compatibility model.
+//
+
+public sealed class RootMagiskInfo
+{
+    public bool RootAvailable { get; init; }
+
+    public bool MagiskDetected { get; init; }
+
+    public string MagiskVersion { get; init; } = "";
+
+    public string MagiskPath { get; init; } = "";
+
+    public string SuPath { get; init; } = "";
+
+    public string Zygisk { get; init; } = "";
+
+    public string DenyList { get; init; } = "";
+
+    public List<string> Modules { get; init; } = new();
+
+    public string Raw { get; init; } = "";
+}
+
+//
+// Flash plan.
+//
+
 public sealed class FlashPlan
 {
     public string Serial { get; set; } = "";
@@ -254,6 +358,10 @@ public sealed class FlashPlanItem
 
     public string Reason { get; set; } = "";
 }
+
+//
+// Magisk.
+//
 
 public sealed class MagiskInfo
 {

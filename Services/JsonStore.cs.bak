@@ -1,61 +1,123 @@
-using System.IO;
 using System.Text.Json;
 
 namespace TechFixStudio.Services;
 
-public sealed class JsonStore
+public sealed class JsonStore<T>
 {
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true
-    };
+    private readonly string _path;
 
-    public async Task SaveAsync<T>(
-        string path,
-        T value,
-        CancellationToken cancellationToken = default)
+    private readonly JsonSerializerOptions _options =
+        new()
+        {
+            WriteIndented = true,
+            PropertyNameCaseInsensitive = true
+        };
+
+    public JsonStore(string path)
+    {
+        _path = path;
+    }
+
+    public async Task<List<T>> LoadAsync(
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (!File.Exists(_path))
+            {
+                return new List<T>();
+            }
+
+            var json =
+                await File.ReadAllTextAsync(
+                    _path,
+                    ct);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new List<T>();
+            }
+
+            return JsonSerializer.Deserialize<List<T>>(
+                       json,
+                       _options)
+                   ?? new List<T>();
+        }
+        catch (JsonException)
+        {
+            BackupCorruptFile();
+
+            return new List<T>();
+        }
+        catch (IOException)
+        {
+            return new List<T>();
+        }
+    }
+
+    public async Task SaveAsync(
+        IEnumerable<T> items,
+        CancellationToken ct = default)
     {
         var directory =
-            Path.GetDirectoryName(path);
+            Path.GetDirectoryName(_path);
 
         if (!string.IsNullOrWhiteSpace(directory))
         {
-            Directory.CreateDirectory(directory);
+            Directory.CreateDirectory(
+                directory);
         }
 
         var json =
             JsonSerializer.Serialize(
-                value,
-                Options);
+                items,
+                _options);
+
+        var temp =
+            _path + ".tmp";
 
         await File.WriteAllTextAsync(
-            path,
+            temp,
             json,
-            cancellationToken);
+            ct);
+
+        if (File.Exists(_path))
+        {
+            File.Replace(
+                temp,
+                _path,
+                null);
+        }
+        else
+        {
+            File.Move(
+                temp,
+                _path);
+        }
     }
 
-    public async Task<T?> LoadAsync<T>(
-        string path,
-        CancellationToken cancellationToken = default)
+    private void BackupCorruptFile()
     {
-        if (!File.Exists(path))
+        try
         {
-            return default;
+            if (!File.Exists(_path))
+            {
+                return;
+            }
+
+            var backup =
+                _path +
+                ".corrupt-" +
+                DateTime.Now.ToString(
+                    "yyyyMMdd-HHmmss");
+
+            File.Copy(
+                _path,
+                backup,
+                true);
         }
-
-        var json =
-            await File.ReadAllTextAsync(
-                path,
-                cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(json))
+        catch
         {
-            return default;
         }
-
-        return JsonSerializer.Deserialize<T>(
-            json,
-            Options);
     }
 }

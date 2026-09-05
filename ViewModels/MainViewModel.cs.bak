@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
@@ -12,93 +13,48 @@ namespace TechFixStudio.ViewModels;
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly AndroidService _android = new();
-
     private readonly AndroidDiagnosticsService _diagnostics = new();
-
     private readonly MagiskService _magisk = new();
-
     private readonly FastbootService _fastboot = new();
-
     private readonly FlashQueueService _queue = new();
-
     private readonly FactoryImageService _factory = new();
-
     private readonly FlashPlanService _flashPlan = new();
-
-    private readonly WindowsRepairService _repair = new();
-
-    private readonly SshService _ssh = new();
-
-    private readonly HistoryService _history = new();
-
-    private readonly AuditService _audit = new();
-
+    private readonly ProcessRunner _runner = new();
     private readonly RiskEngine _risk = new();
-
-    private readonly RomCatalogService _roms = new();
-
+    private readonly WindowsRepairService _repair;
+    private readonly SshService _ssh;
+    private readonly AuditService _audit = new();
     private readonly ToolLocator _tools = new();
+    private readonly Sha256Service _sha = new();
 
-    public event PropertyChangedEventHandler?
-        PropertyChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
 
-    private string _status =
-        "Initializing...";
-
+    private string _status = "Initializing...";
     private string _clock = "";
-
-    private string _terminal =
-        "TECHFIX STUDIO // REAL PROCESS TERMINAL\r\n";
-
-    private string _factoryText =
-        "No package loaded.";
-
-    private string _planText =
-        "No flash plan.";
-
-    private string _sshOutput =
-        "SSH ready.";
-
+    private string _terminal = "TECHFIX STUDIO // REAL PROCESS TERMINAL\r\n";
+    private string _factoryText = "No package loaded.";
+    private string _planText = "No flash plan.";
+    private string _sshOutput = "SSH ready.";
     private string _command = "";
-
     private string _flashPath = "";
-
-    private string _flashPartition =
-        "boot";
-
-    private string _hash = "";
-
-    private string _flashStatus =
-        "Idle";
-
+    private string _flashPartition = "boot";
+    private string _flashHash = "";
+    private string _flashStatus = "Idle";
     private string _sshHost = "";
-
     private string _sshUser = "";
-
-    private string _sshCommand =
-        "uname -a";
-
+    private string _sshCommand = "uname -a";
     private string _logcat = "";
-
-    private string _magiskText =
-        "Magisk status not loaded.";
+    private string _magiskText = "Magisk status not loaded.";
 
     private double _cpu;
-
     private double _ram;
-
     private double _battery;
-
     private double _temp;
 
     private DeviceInfo? _selected;
-
     private AndroidDiagnostics? _androidDiagnostics;
-
     private MagiskInfo? _magiskInfo;
-
     private RomPackage? _currentRom;
-
     private FlashPlan? _currentPlan;
 
     public string Status
@@ -175,8 +131,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string FlashHash
     {
-        get => _hash;
-        set => Set(ref _hash, value);
+        get => _flashHash;
+        set => Set(ref _flashHash, value);
     }
 
     public string FlashStatus
@@ -230,44 +186,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public AndroidDiagnostics? AndroidDiagnostics
     {
         get => _androidDiagnostics;
-        private set => Set(
-            ref _androidDiagnostics,
-            value);
+        private set => Set(ref _androidDiagnostics, value);
     }
 
     public MagiskInfo? MagiskInfo
     {
         get => _magiskInfo;
-        private set => Set(
-            ref _magiskInfo,
-            value);
+        private set => Set(ref _magiskInfo, value);
     }
 
     public RomPackage? CurrentRom
     {
         get => _currentRom;
-        private set => Set(
-            ref _currentRom,
-            value);
+        private set => Set(ref _currentRom, value);
     }
 
     public FlashPlan? CurrentPlan
     {
         get => _currentPlan;
-        private set => Set(
-            ref _currentPlan,
-            value);
+        private set => Set(ref _currentPlan, value);
     }
 
-    public ObservableCollection<DeviceInfo>
-        Devices { get; } = new();
+    public ObservableCollection<DeviceInfo> Devices { get; } = new();
 
-    public ObservableCollection<FlashTask>
-        FlashQueue =>
-        _queue.Items;
+    public ObservableCollection<FlashTask> FlashQueue => _queue.Items;
 
-    public IReadOnlyList<string>
-        Partitions { get; } =
+    public IReadOnlyList<string> Partitions { get; } =
         new[]
         {
             "boot",
@@ -282,39 +226,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
-        AppPaths.Ensure();
+        AppPaths.EnsureDirectories();
 
-        var timer =
-            new DispatcherTimer
+        _repair = new WindowsRepairService(_runner);
+        _ssh = new SshService(_runner, _risk);
+
+        var timer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+
+        timer.Tick += async (_, _) =>
+        {
+            Clock = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            if (SelectedDevice?.Transport == Transport.Adb)
             {
-                Interval =
-                    TimeSpan.FromSeconds(1)
-            };
-
-        timer.Tick +=
-            async (_, _) =>
-            {
-                Clock =
-                    DateTime.Now.ToString(
-                        "yyyy-MM-dd HH:mm:ss");
-
-                if (SelectedDevice?.Transport ==
-                    Transport.Adb)
+                try
                 {
                     var telemetry =
-                        await _android.TelemetryAsync(
-                            SelectedDevice);
+                        await _android.TelemetryAsync(SelectedDevice);
 
                     if (telemetry is not null)
                     {
-                        Battery =
-                            telemetry.Battery;
-
-                        BatteryTemp =
-                            telemetry.Temperature;
+                        Battery = telemetry.Battery;
+                        BatteryTemp = telemetry.Temperature;
                     }
                 }
-            };
+                catch
+                {
+                    // Telemetry failure must not stop the UI timer.
+                }
+            }
+        };
 
         timer.Start();
 
@@ -326,68 +270,69 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             await _queue.LoadAsync();
-
             await RefreshAsync();
         }
         catch (Exception ex)
         {
-            Status =
-                "Initialization error: " +
-                ex.Message;
+            Status = "Initialization error: " + ex.Message;
         }
     }
 
     public async Task RefreshAsync()
     {
-        Devices.Clear();
-
-        foreach (
-            var device in
-            await _android.ScanAsync())
+        try
         {
-            Devices.Add(device);
-        }
+            var oldSerial = SelectedDevice?.Serial;
 
-        foreach (
-            var serial in
-            await _fastboot.DevicesAsync())
+            Devices.Clear();
+
+            foreach (var device in await _android.ScanAsync())
+            {
+                Devices.Add(device);
+            }
+
+            foreach (var serial in await _fastboot.DevicesAsync())
+            {
+                Devices.Add(
+                    new DeviceInfo(
+                        serial,
+                        Transport.Fastboot,
+                        "fastboot",
+                        "Fastboot Device",
+                        "—",
+                        "—",
+                        "—",
+                        "—",
+                        "—",
+                        false,
+                        false));
+            }
+
+            SelectedDevice =
+                Devices.FirstOrDefault(x => x.Serial == oldSerial)
+                ?? Devices.FirstOrDefault();
+
+            Status =
+                $"Detected {Devices.Count} device(s) | " +
+                $"ADB: {(_tools.AdbPath is null ? "MISSING" : "OK")} | " +
+                $"Fastboot: {(_tools.FastbootPath is null ? "MISSING" : "OK")}";
+
+            OnPropertyChanged(nameof(FlashQueue));
+        }
+        catch (Exception ex)
         {
-            Devices.Add(
-                new DeviceInfo(
-                    serial,
-                    Transport.Fastboot,
-                    "fastboot",
-                    "Fastboot Device",
-                    "—",
-                    "—",
-                    "—",
-                    "—",
-                    "—",
-                    false,
-                    false));
+            Status = "Scan failed: " + ex.Message;
         }
-
-        SelectedDevice =
-            Devices.FirstOrDefault();
-
-        Status =
-            $"Detected {Devices.Count} device(s) | " +
-            $"ADB: {(_tools.Adb is null ? "MISSING" : "OK")} | " +
-            $"Fastboot: {(_tools.Fastboot is null ? "MISSING" : "OK")}";
     }
 
     public async Task RunCommandAsync()
     {
-        var command =
-            Command.Trim();
+        var command = Command.Trim();
 
         if (command.Length == 0)
-        {
             return;
-        }
 
-        var risk =
-            _risk.Assess(command);
+        var risk = _risk.Assess(command);
 
         AppendTerminal(
             $"\r\n> {command}\r\n");
@@ -395,81 +340,86 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (risk >= RiskLevel.High)
         {
             AppendTerminal(
-                $"BLOCKED [{risk}] " +
-                "Use the dedicated safety workflow.\r\n");
+                $"BLOCKED [{risk}] Use the dedicated safety workflow.\r\n");
 
             await _audit.WriteAsync(
                 "blocked-command",
                 command,
-                "blocked",
-                risk);
+                risk,
+                false,
+                "Blocked by safety policy.");
 
             return;
         }
 
-        if (command.StartsWith(
-                "adb ",
-                StringComparison.OrdinalIgnoreCase))
+        if (!command.StartsWith(
+                "adb",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            (command.Length > 3 &&
+             !char.IsWhiteSpace(command[3])))
         {
-            if (_tools.Adb is null)
-            {
-                AppendTerminal(
-                    "adb executable not found.\r\n");
+            AppendTerminal(
+                "Only the registered ADB executor is available in this terminal.\r\n");
 
-                return;
-            }
+            await _audit.WriteAsync(
+                "unregistered-command",
+                command,
+                risk,
+                false,
+                "No registered executor.");
 
-            var args =
-                SplitArguments(
-                    command[4..]);
+            return;
+        }
 
-            var progress =
-                new Progress<string>(
-                    line =>
-                    {
-                        AppendTerminal(
-                            line +
-                            Environment.NewLine);
-                    });
-
-            var result =
-                await new ProcessRunner().RunAsync(
-                    _tools.Adb,
-                    args,
-                    TimeSpan.FromMinutes(2),
-                    output: progress);
-
-            if (!string.IsNullOrWhiteSpace(
-                    result.StdOut))
-            {
-                AppendTerminal(
-                    result.StdOut);
-            }
-
-            if (!string.IsNullOrWhiteSpace(
-                    result.StdErr))
-            {
-                AppendTerminal(
-                    result.StdErr);
-            }
+        if (_tools.AdbPath is null)
+        {
+            AppendTerminal(
+                "adb executable not found.\r\n");
 
             await _audit.WriteAsync(
                 "adb",
                 command,
-                result.ExitCode.ToString(),
-                risk);
+                risk,
+                false,
+                "adb executable not found.");
 
             return;
         }
 
-        AppendTerminal(
-            "No registered executor for this command.\r\n");
+        var args =
+            SplitArguments(
+                command.Length == 3
+                    ? ""
+                    : command[4..]);
+
+        var progress =
+            new Progress<string>(
+                line =>
+                    AppendTerminal(
+                        line + Environment.NewLine));
+
+        var result =
+            await _runner.RunAsync(
+                _tools.AdbPath,
+                args,
+                TimeSpan.FromMinutes(2),
+                output: progress);
+
+        AppendTerminal(result.StdOut);
+        AppendTerminal(result.StdErr);
+
+        await _audit.WriteAsync(
+            "adb",
+            command,
+            risk,
+            result.ExitCode == 0,
+            result.StdOut + result.StdErr);
     }
 
     public async Task DiagnoseAndroidAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Adb)
+        if (SelectedDevice?.Transport != Transport.Adb)
         {
             Status =
                 "Select an ADB Android device.";
@@ -498,6 +448,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         BatteryTemp =
             AndroidDiagnostics.Battery.Temperature;
 
+        Ram =
+            AndroidDiagnostics.Memory.UsedPercent;
+
         Status =
             $"Diagnostics ready: " +
             $"{AndroidDiagnostics.Manufacturer} " +
@@ -506,8 +459,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task LoadLogcatAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Adb)
+        if (SelectedDevice?.Transport != Transport.Adb)
         {
             Logcat =
                 "Select an ADB device.";
@@ -522,17 +474,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task RebootBootloaderAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Adb)
-        {
+        if (SelectedDevice?.Transport != Transport.Adb)
             return;
-        }
 
         if (!Confirm(
                 "Reboot the selected Android device into Bootloader?"))
-        {
             return;
-        }
 
         var result =
             await _android.RebootAsync(
@@ -540,23 +487,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 "bootloader");
 
         AppendTerminal(
-            result.StdOut +
-            result.StdErr);
+            result.StdOut + result.StdErr);
     }
 
     public async Task RebootRecoveryAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Adb)
-        {
+        if (SelectedDevice?.Transport != Transport.Adb)
             return;
-        }
 
         if (!Confirm(
                 "Reboot the selected Android device into Recovery?"))
-        {
             return;
-        }
 
         var result =
             await _android.RebootAsync(
@@ -564,14 +505,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 "recovery");
 
         AppendTerminal(
-            result.StdOut +
-            result.StdErr);
+            result.StdOut + result.StdErr);
     }
 
     public async Task InspectMagiskAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Adb)
+        if (SelectedDevice?.Transport != Transport.Adb)
         {
             MagiskText =
                 "Select an ADB device.";
@@ -604,19 +543,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!Confirm(
                 "Run SFC /scannow?"))
-        {
             return;
-        }
 
         var result =
-            await _repair.Sfc();
+            await _repair.RunSfcAsync();
 
         AppendTerminal(
-            result.StdOut +
-            result.StdErr);
+            result.StdOut + result.StdErr);
 
-        await SaveHistory(
+        await WriteActionAudit(
             "SFC",
+            "sfc.exe /scannow",
+            RiskLevel.Medium,
             result);
     }
 
@@ -624,19 +562,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!Confirm(
                 "Run DISM CheckHealth?"))
-        {
             return;
-        }
 
         var result =
-            await _repair.DismCheck();
+            await _repair.CheckHealthAsync();
 
         AppendTerminal(
-            result.StdOut +
-            result.StdErr);
+            result.StdOut + result.StdErr);
 
-        await SaveHistory(
+        await WriteActionAudit(
             "DISM CheckHealth",
+            "DISM.exe /Online /Cleanup-Image /CheckHealth",
+            RiskLevel.Medium,
             result);
     }
 
@@ -644,66 +581,55 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (!Confirm(
                 "Run DISM RestoreHealth?"))
-        {
             return;
-        }
 
         var result =
-            await _repair.DismRestore();
+            await _repair.RestoreHealthAsync();
 
         AppendTerminal(
-            result.StdOut +
-            result.StdErr);
+            result.StdOut + result.StdErr);
 
-        await SaveHistory(
+        await WriteActionAudit(
             "DISM RestoreHealth",
+            "DISM.exe /Online /Cleanup-Image /RestoreHealth",
+            RiskLevel.Medium,
             result);
     }
 
-    public async Task InspectFactoryAsync(
-        string path)
+    public async Task InspectFactoryAsync(string path)
     {
         try
         {
             var package =
-                await _factory.InspectAsync(
-                    path);
+                await _factory.InspectAsync(path);
 
             CurrentRom =
                 package;
 
             FactoryText =
-                $"{package.Name}\r\n" +
-                $"Product: {package.Product}\r\n" +
-                $"Build: {package.Build}\r\n" +
-                $"Region: {package.Region}\r\n" +
-                $"Images: {package.Images.Count}\r\n" +
-                $"Scripts: {string.Join(", ", package.Scripts)}\r\n\r\n" +
-                string.Join(
-                    "\r\n",
-                    package.Images.Select(
-                        x =>
-                            $"{x.Partition,-16} " +
-                            $"{x.Size,14} bytes  " +
-                            $"SHA {x.Sha256}" +
-                            (x.Critical
-                                ? "  [CRITICAL]"
-                                : "") ));
+                BuildFactoryText(package);
 
             FlashPath =
                 path;
 
             FlashHash =
-                package.Images
-                    .FirstOrDefault()
-                    ?.Sha256
-                    ?? "";
+                package.Images.Count == 1
+                    ? package.Images[0].Sha256
+                    : "";
+
+            Status =
+                $"ROM analysis complete: " +
+                $"{package.Images.Count} image(s), " +
+                $"{package.Scripts.Count} script(s).";
         }
         catch (Exception ex)
         {
             FactoryText =
-                "Inspection failed:\r\n" +
+                "Factory analysis failed:\r\n" +
                 ex.Message;
+
+            Status =
+                "Factory analysis failed.";
         }
     }
 
@@ -712,13 +638,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (CurrentRom is null)
         {
             PlanText =
-                "Load a ROM/factory package first.";
+                "Please analyze a ROM / Factory package first.";
 
             return;
         }
 
-        if (SelectedDevice?.Transport !=
-            Transport.Fastboot)
+        if (SelectedDevice?.Transport != Transport.Fastboot)
         {
             PlanText =
                 "Select a Fastboot device.";
@@ -744,32 +669,66 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 CurrentRom);
 
         PlanText =
-            $"Serial: {CurrentPlan.Serial}\r\n" +
-            $"Product: {CurrentPlan.Product}\r\n" +
-            $"Slot: {CurrentPlan.CurrentSlot}\r\n" +
-            $"Unlocked: {CurrentPlan.Unlocked}\r\n" +
-            $"Secure: {CurrentPlan.Secure}\r\n" +
-            $"Anti-Rollback: {CurrentPlan.AntiRollback}\r\n" +
-            $"Safe: {CurrentPlan.SafeToProceed}\r\n\r\n" +
-            "WARNINGS:\r\n" +
-            string.Join(
-                "\r\n",
-                CurrentPlan.Warnings.Select(
-                    x => " - " + x)) +
-            "\r\n\r\nITEMS:\r\n" +
-            string.Join(
-                "\r\n",
-                CurrentPlan.Items.Select(
-                    x =>
-                        $"{x.Partition,-16} " +
-                        $"{(x.Allowed ? "ALLOWED" : "BLOCKED"),-8} " +
-                        $"{x.Reason}"));
+            BuildPlanText(CurrentPlan);
+    }
+
+    public async Task PrepareFlashImageAsync(
+        FlashPlanItem item)
+    {
+        if (item is null ||
+            string.IsNullOrWhiteSpace(item.Partition))
+            return;
+
+        if (!item.Allowed)
+        {
+            FlashStatus =
+                $"Partition {item.Partition} " +
+                "is blocked by the generic safety policy.";
+
+            return;
+        }
+
+        var path =
+            item.ImagePath;
+
+        if (!File.Exists(path) &&
+            CurrentRom is not null &&
+            CurrentRom.Source.EndsWith(
+                ".zip",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            path =
+                await ExtractRomEntryAsync(
+                    CurrentRom.Source,
+                    item.ImagePath);
+        }
+
+        if (string.IsNullOrWhiteSpace(path) ||
+            !File.Exists(path))
+        {
+            FlashStatus =
+                "Image could not be materialized from the package.";
+
+            return;
+        }
+
+        FlashPath =
+            path;
+
+        FlashPartition =
+            item.Partition;
+
+        FlashHash =
+            await _sha.HashAsync(path);
+
+        FlashStatus =
+            $"Prepared {item.Partition}; " +
+            "SHA-256 verified locally.";
     }
 
     public async Task AddTaskAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Fastboot)
+        if (SelectedDevice?.Transport != Transport.Fastboot)
         {
             FlashStatus =
                 "Select a Fastboot device.";
@@ -787,35 +746,44 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (!File.Exists(
-                FlashPath))
+        if (!File.Exists(FlashPath))
         {
             FlashStatus =
-                "Select an image.";
+                "Select an image file.";
 
             return;
         }
 
         if (FlashHash.Length != 64 ||
-            FlashHash.Any(
-                c => !Uri.IsHexDigit(c)))
+            FlashHash.Any(c => !Uri.IsHexDigit(c)))
         {
             FlashStatus =
-                "SHA-256 must be 64 hex characters.";
+                "SHA-256 must be 64 hexadecimal characters.";
 
             return;
         }
 
         var file =
-            new FileInfo(
-                FlashPath);
+            new FileInfo(FlashPath);
+
+        var actualHash =
+            await _sha.HashAsync(FlashPath);
+
+        if (!actualHash.Equals(
+                FlashHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            FlashStatus =
+                "SHA-256 mismatch; task was not queued.";
+
+            return;
+        }
 
         var task =
             new FlashTask
             {
                 Id =
-                    Guid.NewGuid()
-                        .ToString("N"),
+                    Guid.NewGuid().ToString("N"),
 
                 Serial =
                     SelectedDevice.Serial,
@@ -824,11 +792,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                     FlashPartition,
 
                 ImagePath =
-                    Path.GetFullPath(
-                        FlashPath),
+                    Path.GetFullPath(FlashPath),
 
                 Sha256 =
-                    FlashHash.ToLowerInvariant(),
+                    actualHash.ToLowerInvariant(),
 
                 Size =
                     file.Length,
@@ -838,9 +805,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                 Message =
                     "Queued",
-
-                Progress =
-                    0,
 
                 Created =
                     DateTime.Now,
@@ -864,23 +828,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await _queue.SaveAsync();
 
         FlashStatus =
-            "Task queued.";
+            "Task queued with verified SHA-256.";
+
+        OnPropertyChanged(
+            nameof(FlashQueue));
     }
 
     public async Task RunQueueAsync()
     {
         if (!Confirm(
                 "Start the REAL fastboot flash queue?\r\n\r\n" +
-                "Every image will be checked and " +
-                "each task requires individual confirmation."))
-        {
+                "Every image is preflighted, hashed and " +
+                "individually confirmed."))
             return;
-        }
 
         await _queue.RunAsync(
-            async item =>
-            {
-                return await Application.Current.Dispatcher
+            item =>
+                Application.Current.Dispatcher
                     .InvokeAsync(
                         () =>
                             Confirm(
@@ -888,13 +852,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                                 $"Device: {item.Serial}\r\n" +
                                 $"Image: {Path.GetFileName(item.ImagePath)}\r\n" +
                                 $"SHA-256: {item.Sha256}\r\n\r\n" +
-                                (item.Critical
-                                    ? "WARNING: CRITICAL PARTITION\r\n"
-                                    : "")))
-                    .Task;
-            },
+                                (
+                                    item.Critical
+                                        ? "WARNING: CRITICAL PARTITION\r\n"
+                                        : "")))
+                    .Task,
+
             item =>
-            {
                 Application.Current.Dispatcher.Invoke(
                     () =>
                     {
@@ -903,39 +867,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
                         OnPropertyChanged(
                             nameof(FlashQueue));
-                    });
-            });
+                    }));
     }
 
-    public async Task CancelQueueAsync()
+    public Task CancelQueueAsync()
     {
         _queue.Cancel();
 
-        await Task.CompletedTask;
-
         FlashStatus =
             "Cancellation requested.";
+
+        return Task.CompletedTask;
     }
 
     public async Task RemoveTaskAsync(
         FlashTask? task)
     {
         if (task is null)
-        {
             return;
-        }
 
-        _queue.Remove(
-            task.Id);
+        _queue.Remove(task.Id);
 
         await _queue.SaveAsync();
+
+        OnPropertyChanged(
+            nameof(FlashQueue));
     }
 
     public async Task FastbootInfoAsync()
     {
-        if (SelectedDevice?.Transport !=
-            Transport.Fastboot)
+        if (SelectedDevice?.Transport != Transport.Fastboot)
         {
+            Status =
+                "Select a Fastboot device.";
+
             return;
         }
 
@@ -960,16 +925,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             $"Unlocked: {info.Unlocked}\r\n" +
             $"Secure: {info.Secure}\r\n" +
             $"Anti-Rollback: {info.AntiRollback}\r\n\r\n" +
-            info.Raw +
-            "\r\n");
+            $"{info.Raw}\r\n");
     }
 
     public async Task RunSshAsync()
     {
         var risk =
             _risk.Assess(
-                "ssh " +
-                SshCommand);
+                "ssh " + SshCommand);
 
         if (risk >= RiskLevel.High)
         {
@@ -979,50 +942,160 @@ public sealed class MainViewModel : INotifyPropertyChanged
             await _audit.WriteAsync(
                 "blocked-ssh",
                 SshHost,
-                "blocked",
-                risk);
+                risk,
+                false,
+                "Blocked by safety policy.");
 
             return;
         }
 
-        var result =
-            await _ssh.RunAsync(
+        try
+        {
+            var result =
+                await _ssh.ExecuteAsync(
+                    SshHost,
+                    SshUser,
+                    SshCommand,
+                    22);
+
+            SshOutput =
+                result.StdOut +
+                result.StdErr;
+
+            await _audit.WriteAsync(
+                "ssh",
                 SshHost,
-                SshUser,
-                22,
-                SshCommand);
+                risk,
+                result.ExitCode == 0,
+                SshOutput);
+        }
+        catch (Exception ex)
+        {
+            SshOutput =
+                ex.Message;
 
-        SshOutput =
-            result.StdOut +
-            result.StdErr;
-
-        await _audit.WriteAsync(
-            "ssh",
-            SshHost,
-            result.ExitCode.ToString(),
-            risk);
+            await _audit.WriteAsync(
+                "ssh",
+                SshHost,
+                risk,
+                false,
+                ex.Message);
+        }
     }
 
-    private async Task SaveHistory(
+    private async Task WriteActionAudit(
         string action,
+        string target,
+        RiskLevel risk,
         CommandResult result)
     {
-        await _history.AddAsync(
-            new HistoryEntry(
-                DateTime.Now,
-                action,
-                "local",
-                result.ExitCode == 0
-                    ? "Success"
-                    : "Failed",
-                RiskLevel.Medium.ToString(),
-                result.StdOut +
-                result.StdErr));
+        await _audit.WriteAsync(
+            action,
+            target,
+            risk,
+            result.ExitCode == 0,
+            result.StdOut + result.StdErr);
+    }
+
+    private static string BuildFactoryText(
+        RomPackage package)
+    {
+        return
+            $"{package.Name}\r\n" +
+            $"Product: {package.Product}\r\n" +
+            $"Build: {package.Build}\r\n" +
+            $"Region: {package.Region}\r\n" +
+            $"Source: {package.Source}\r\n" +
+            $"Images: {package.Images.Count}\r\n" +
+            $"Scripts: {string.Join(", ", package.Scripts)}\r\n\r\n" +
+            string.Join(
+                "\r\n",
+                package.Images.Select(
+                    x =>
+                        $"{x.Partition,-16} " +
+                        $"{x.Size,14} bytes  " +
+                        $"SHA {x.Sha256}" +
+                        (
+                            x.Critical
+                                ? "  [CRITICAL]"
+                                : "")));
+    }
+
+    private static string BuildPlanText(
+        FlashPlan plan)
+    {
+        return
+            $"Serial: {plan.Serial}\r\n" +
+            $"Product: {plan.Product}\r\n" +
+            $"Slot: {plan.CurrentSlot}\r\n" +
+            $"Unlocked: {plan.Unlocked}\r\n" +
+            $"Secure: {plan.Secure}\r\n" +
+            $"Anti-Rollback: {plan.AntiRollback}\r\n" +
+            $"Safe: {plan.SafeToProceed}\r\n\r\n" +
+            "WARNINGS:\r\n" +
+            string.Join(
+                "\r\n",
+                plan.Warnings.Select(
+                    x => " - " + x)) +
+            "\r\n\r\nITEMS:\r\n" +
+            string.Join(
+                "\r\n",
+                plan.Items.Select(
+                    x =>
+                        $"{x.Partition,-16} " +
+                        $"{(x.Allowed ? "ALLOWED" : "BLOCKED"),-8} " +
+                        $"{x.Reason}"));
+    }
+
+    private static async Task<string?> ExtractRomEntryAsync(
+        string zipPath,
+        string entryName)
+    {
+        if (!File.Exists(zipPath))
+            return null;
+
+        using var archive =
+            ZipFile.OpenRead(zipPath);
+
+        var entry =
+            archive.GetEntry(entryName);
+
+        if (entry is null)
+            return null;
+
+        var root =
+            Path.Combine(
+                AppPaths.CacheDirectory,
+                "rom",
+                Path.GetFileNameWithoutExtension(zipPath));
+
+        Directory.CreateDirectory(root);
+
+        var safeName =
+            Path.GetFileName(entry.FullName);
+
+        var output =
+            Path.Combine(
+                root,
+                safeName);
+
+        await using var input =
+            entry.Open();
+
+        await using var file =
+            File.Create(output);
+
+        await input.CopyToAsync(file);
+
+        return output;
     }
 
     private void AppendTerminal(
         string text)
     {
+        if (string.IsNullOrEmpty(text))
+            return;
+
         Terminal += text;
 
         if (Terminal.Length > 500_000)
@@ -1040,12 +1113,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
                    "TechFix Safety Confirmation",
                    MessageBoxButton.YesNo,
                    MessageBoxImage.Warning)
-               ==
-               MessageBoxResult.Yes;
+               == MessageBoxResult.Yes;
     }
 
-    private static IEnumerable<string>
-        SplitArguments(string text)
+    private static IEnumerable<string> SplitArguments(
+        string text)
     {
         var result =
             new List<string>();
@@ -1053,7 +1125,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var buffer =
             new System.Text.StringBuilder();
 
-        var quoted = false;
+        var quoted =
+            false;
 
         foreach (var c in text)
         {
@@ -1063,8 +1136,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 continue;
             }
 
-            if (char.IsWhiteSpace(c) &&
-                !quoted)
+            if (char.IsWhiteSpace(c) && !quoted)
             {
                 if (buffer.Length > 0)
                 {
@@ -1089,11 +1161,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return result;
     }
 
+    private static double ParsePercent(
+        string text)
+    {
+        if (double.TryParse(
+                text,
+                out var value))
+        {
+            return value;
+        }
+
+        return 0;
+    }
+
     private void Set<T>(
         ref T field,
         T value,
-        [CallerMemberName]
-        string? propertyName = null)
+        [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(
                 field,
@@ -1109,8 +1193,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     private void OnPropertyChanged(
-        [CallerMemberName]
-        string? propertyName = null)
+        [CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(
             this,

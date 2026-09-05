@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 namespace TechFixStudio.Infrastructure;
@@ -39,6 +40,16 @@ public static class AppPaths
 
     public static string RomCatalogFile =>
         Path.Combine(DataDirectory, "rom-catalog.json");
+
+    // Compatibility alias used by the 2.0 FlashQueueService.
+    public static string Queue =>
+        FlashQueueFile;
+
+    // Compatibility entry point used by services during startup.
+    public static void Ensure()
+    {
+        EnsureDirectories();
+    }
 
     public static void EnsureDirectories()
     {
